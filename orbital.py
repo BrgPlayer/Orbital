@@ -281,6 +281,7 @@ class OrbitalGame:
     def __init__(self, root):
         self.root = root
         root.title("Orbital - gravity slingshot puzzles")
+        root.resizable(False, False)  # fixed layout: resizing must not move anything
         self.beeper = Beeper()
 
         self.hud1 = tk.Label(root, font=("Consolas", 13, "bold"), anchor="w",
