@@ -39,7 +39,7 @@ run per mission, your custom levels, and your settings.)
   **sliders aim burns too** — Angle sets the direction, Power the
   strength. Burns are limited per mission; the pips track them.
 - **U** undoes the last burn (or the launch itself) — even after a
-  crash. **R** resets the mission, **Esc** pauses, **P** / **N** switch
+  crash. **R** resets the mission, **H** pauses and resumes, **P** / **N** switch
   missions, and the **< Level N >** pager under the buttons does too.
 - Dock in as few burns as possible: at or under par = 3 stars, one
   over = 2, otherwise 1. Cyan **data cores** are optional pickups.
@@ -58,7 +58,9 @@ run per mission, your custom levels, and your settings.)
   straight at one still crashes into it.
 - The dotted **ghost line** on a mission is your best run there — beat
   your own line. **Clear ghost** removes the open level's ghost when
-  you want it gone. The header tracks your campaign totals (stars and
+  you want it gone. The **Ghosts** checkbox turns ghost recording and
+  display off (saved ghosts are kept, so they come back when you turn
+  it on again). The header tracks your campaign totals (stars and
   cores across all 35 missions).
 - **Random** builds a fresh mission on the spot: the generator flies a
   design line first, places the station on the path it actually flew,
@@ -66,7 +68,10 @@ run per mission, your custom levels, and your settings.)
   deliberate detour. Missions roll 2 to 5 planets and 2 to 5 cores,
   and a planet can be a repulsor, orbit, or patrol a path (sometimes
   a loop); some missions add a wormhole pair. The finished mission is
-  verified beatable before it is shown.
+  verified beatable before it is shown. Random missions are one-off
+  challenges: winning one shows your stars on the win screen, but
+  nothing is saved for it, so it can never hand its results to
+  another level.
 - **Editor** lets you build your own missions: place planets (drag to
   move, mouse wheel to resize), start pad, dock, cores and wormholes,
   set par and burns, then playtest or save them — saved levels live in
@@ -84,13 +89,46 @@ run per mission, your custom levels, and your settings.)
   clicking a pathed planet with the tool removes the path.
   **Shift+click** a pathed planet with the Path tool to toggle
   **loop** mode: the planet rides its route in a circle, back to the
-  start, instead of ping-ponging.
+  start, instead of ping-ponging. The **Barrier** tool builds solid
+  walls the ship crashes into: drag a rectangle to make one, or hold
+  Shift and click to lay down polygon corners, then release Shift to
+  close the shape — a barrier needs 3 corners and a real area, so a
+  line makes nothing, and a barrier can't cover the pad or the dock.
+  **Del Bar** cuts barrier away the same way: drag a rectangle over
+  part of a wall to cut it out, or Shift+click a shape — cutting a
+  smaller shape out of the middle of a big one leaves a ring. Click a
+  planet to select it, then press **Rename** (or double-click the
+  planet) to rename it — the name is what the play field shows under
+  the planet, and it travels with the level when you save, playtest,
+  or share it. The **Description** field under the toolbar sets the
+  mission's subtitle — the line shown under the mission name — so a
+  level you share can carry a note from whoever made it.
+- **My levels** lists all your saved custom levels with their stars
+  and cores, and lets you play, edit, share, rename, or delete any
+  of them from one place. It also has **Save to file** and **Load
+  from file**: a level can be saved as a `.orbital` file (or a plain
+  `.json` level file) and loaded back from disk, instead of passing a
+  code around.
 - **Share level** turns the open mission (or the one you're building
   in the editor) into a short text code on your clipboard. Send it to
   anyone who has Orbital; they press **Paste level**, paste the code,
-  and the mission is saved into their game.
-- The **1× / 1.25× / 1.5×** buttons scale the whole window (the layout
-  stays fixed at each size). Preview and Sound toggles and the scale
+  and the mission is saved into their game. Paste level remembers the
+  last 8 codes you imported — double-click one to load it again.
+- The **Window 1× / 1.25× / 1.5×** buttons scale the whole window (the layout
+  stays fixed at each size). The **Text 1× / 1.25× / 1.5×** buttons scale
+  only the game text — mission text, HUD, and planet labels — while the
+  field and the window stay put. Buttons and checkboxes keep their size
+  so the layout never widens. Both scales live in their own row, and the
+  active choice in each is highlighted. Preview, Sound, Ghosts, and both
+  scales are remembered between launches.
+- The options row holds the rest: **Orbit paths** draws the orbit
+  circles and patrol routes of moving planets on the field; **Labels**
+  shows or hides the planet name tags (the editor always shows its
+  detail tags); **Effects** turns particles and starfield twinkle on
+  or off; **Auto-advance** jumps to the next mission 1.5 seconds
+  after you dock; **Pause on unfocus** auto-pauses a flight when the
+  window loses focus, so the 25-second clock doesn't eat the run;
+  **Grid** draws a faint coordinate grid on the field. All of them
   are remembered between launches.
 - Flights end after **25 seconds**.
 

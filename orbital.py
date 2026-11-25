@@ -49,7 +49,7 @@ import time
 import zlib
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
 
 # ----------------------------------------------------------------------
 # CONFIG - same numbers as the web edition
@@ -69,11 +69,15 @@ LOST_MARGIN = 70                 # px beyond the field = lost
 FLIGHT_TIMEOUT = 25.0            # seconds; longer flights end the run
 GRAV_SOFT = 400.0                # gravity softening (mu / (d^2 + 400))
 GRAV_K = 450.0                   # gravity scales with size: mu = GRAV_K * radius^2
-TRAIL_MAX = 900
+# The trail is one point per 60 Hz tick, so 1500 holds a whole flight
+# up to the 25 s timeout; the old 900 cut the first seconds off slow
+# runs and their ghosts started mid-flight.
+TRAIL_MAX = 1500
 WORMHOLE_RADIUS = 17             # teleport trigger distance, px
 WORMHOLE_COOLDOWN = 0.6          # seconds before another teleport
 FLYBY_RANGE = 14.0               # surface distance that counts as a flyby
 SCALES = (1.0, 1.25, 1.5)        # window scale choices (fixed layout)
+TEXT_SCALES = (1.0, 1.25, 1.5)   # text scale choices (fonts only)
 
 if getattr(sys, "frozen", False):   # running as a PyInstaller .exe
     _BASE_DIR = os.path.dirname(sys.executable)
@@ -305,9 +309,10 @@ LEVELS = [
     {"name": "Undertow", "sub": "The gate is blocked. Take the wormhole.",
      "start": (70, 90), "target": (890, 510),
      "par": 2, "max_burns": 4,
-     "planets": [(480, 300, 34, 520200, "#e08a3c", "Block")],
+     "planets": [{"x": 480, "y": 300, "r": 34, "color": "#e08a3c",
+                  "label": "Block", "repel": True}],
      "wormholes": [(200, 510, 760, 90)],
-     "cores": [(87, 294), (181, 497), (853, 289)]},
+     "cores": [(133, 288), (187, 466), (819, 286)]},
     {"name": "The Pendulum", "sub": "Time the swing.",
      "start": (70, 300), "target": (890, 300),
      "par": 3, "max_burns": 5,
@@ -362,19 +367,19 @@ LEVELS = [
      ],
      "par": 3, "max_burns": 5,
      "cores": [(253, 202), (459, 332), (673, 443)]},
-    {"name": 'Cross Traffic', "sub": 'Two patrols cross the field - one runs across, one runs down. Mind the intersection.',
+    {"name": 'Cross Traffic', "sub": 'Westbound loops the upper field while Southbound runs down. Mind the crossing.',
      "start": (80, 520), "target": (880, 90),
      "planets": [
-        {'x': 150, 'y': 200, 'r': 20, 'mu': 180000, 'color': '#e08a3c', 'label': 'Westbound', 'path': {'pts': [[150, 200], [810, 200]], 'speed': 66.0, 'phase': 0.0}},
+        {'x': 450, 'y': 200, 'r': 20, 'color': '#e08a3c', 'label': 'Westbound', 'orbit': {'cx': 300, 'cy': 200, 'radius': 150, 'speed': 0.3, 'phase': 0.0}},
         {'x': 620, 'y': 90, 'r': 20, 'mu': 180000, 'color': '#c65b7a', 'label': 'Southbound', 'path': {'pts': [[620, 90], [620, 510]], 'speed': 84.0, 'phase': 0.0}},
         (330, 420, 24, 259200, '#3a9ad9', 'Anchor'),
      ],
      "par": 3, "max_burns": 5,
      "cores": [(295, 472), (506, 369), (695, 245)]},
-    {"name": 'The Long Patrol', "sub": 'A heavy hauler walks a long V route while a fast scout sweeps the bottom. Two clocks to beat.',
+    {"name": 'The Long Patrol', "sub": 'A heavy hauler circles the hub while a fast scout sweeps the bottom. Two clocks to beat.',
      "start": (60, 300), "target": (905, 300),
      "planets": [
-        {'x': 200, 'y': 150, 'r': 28, 'mu': 352800, 'color': '#d96c4f', 'label': 'Hauler', 'path': {'pts': [[200, 150], [480, 450], [760, 150]], 'speed': 40.0, 'phase': 0.0}},
+        {'x': 640, 'y': 300, 'r': 28, 'color': '#d96c4f', 'label': 'Hauler', 'orbit': {'cx': 480, 'cy': 300, 'radius': 160, 'speed': 0.2, 'phase': 0.0}},
         {'x': 150, 'y': 520, 'r': 14, 'mu': 88200, 'color': '#2ec4a6', 'label': 'Scout', 'path': {'pts': [[150, 520], [810, 520]], 'speed': 110.0, 'phase': 0.0}},
         (480, 300, 16, 115200, '#7a6fd0', 'Hub'),
      ],
@@ -409,11 +414,13 @@ def step_physics(x, y, vx, vy, planets, dt):
     return x, y, vx, vy
 
 
-def check_hit(x, y, planets, target):
+def check_hit(x, y, planets, target, barriers=()):
     """'crash' | 'dock' | 'lost' | None - same rules as the web edition."""
     for (px, py, r, _mu, _c, _label) in planets:
         if (x - px) ** 2 + (y - py) ** 2 < (r + CRASH_PAD) ** 2:
             return "crash"
+    if barriers and point_in_barriers(x, y, barriers):
+        return "crash"
     tx, ty = target
     if (x - tx) ** 2 + (y - ty) ** 2 < DOCK_RADIUS ** 2:
         return "dock"
@@ -421,6 +428,302 @@ def check_hit(x, y, planets, target):
             or y < -LOST_MARGIN or y > HEIGHT + LOST_MARGIN:
         return "lost"
     return None
+
+
+# ----------------------------------------------------------------------
+# BARRIERS - solid polygonal walls a level can contain. The ship
+# crashes if it flies into one. A barrier is just a list of points
+# (a polygon); the editor builds them, and the barrier eraser cuts
+# pieces out of them. The eraser works by clipping: a point is
+# outside a convex clip polygon exactly when it is outside at least
+# one of its edges, so subtracting a clip is the union of the
+# subject clipped to the outside of each edge (Sutherland-Hodgman).
+# That handles a corner bite, a full delete, and a hole punched in
+# the middle (the "donut") with one algorithm, and the pieces may
+# overlap - they are drawn and collided as a union, so overlaps are
+# harmless. A concave eraser shape is triangulated first (triangles
+# are convex), so it works too.
+# ----------------------------------------------------------------------
+BARRIER_FILL = "#6b2f2c"
+BARRIER_MAX = 36          # polygons per level
+BARRIER_MAX_PTS = 64      # points per polygon
+BARRIER_MIN_AREA = 25.0   # px^2 - anything smaller is a sliver, drop it
+
+
+def polygon_area(pts):
+    """Signed area (shoelace); positive = counter-clockwise."""
+    a = 0.0
+    for i in range(len(pts)):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % len(pts)]
+        a += x1 * y2 - x2 * y1
+    return a / 2.0
+
+
+def clean_poly(pts):
+    """Drop consecutive duplicate points (and a closing repeat of
+    the first point)."""
+    out = []
+    for q in pts:
+        if not out or (q[0] != out[-1][0] or q[1] != out[-1][1]):
+            out.append([q[0], q[1]])
+    if len(out) > 1 and out[0] == out[-1]:
+        out.pop()
+    return out
+
+
+def point_in_polygon(x, y, pts):
+    """Even-odd ray cast."""
+    inside = False
+    n = len(pts)
+    for i in range(n):
+        x1, y1 = pts[i]
+        x2, y2 = pts[(i + 1) % n]
+        if (y1 > y) != (y2 > y):
+            xin = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if x < xin:
+                inside = not inside
+    return inside
+
+
+def point_in_barriers(x, y, barriers):
+    return any(point_in_polygon(x, y, pts) for pts in barriers)
+
+
+def _ed_on_planet(ed, gx, gy):
+    """True when the point sits inside a planet's crash radius
+    (radius + CRASH_PAD, the same rule check_hit uses): the pad
+    and the dock both refuse such a spot, or the ship would crash
+    the instant it launched / could never dock there."""
+    for p in ed["planets"]:
+        if math.hypot(gx - p["x"], gy - p["y"]) < p["r"] + CRASH_PAD:
+            return True
+    return False
+
+
+def _clip_halfplane(pts, ax, ay, bx, by):
+    """Sutherland-Hodgman: keep the part of polygon `pts` on the
+    RIGHT of the directed edge a -> b (the outside of a
+    counter-clockwise clip polygon)."""
+    if not pts:
+        return []
+
+    def cross(px, py):
+        return (bx - ax) * (py - ay) - (by - ay) * (px - ax)
+
+    out = []
+    n = len(pts)
+    for i in range(n):
+        cx, cy = pts[i]
+        px, py = pts[i - 1]
+        cc = cross(cx, cy)
+        pc = cross(px, py)
+        if cc <= 0.0:
+            if pc > 0.0:
+                t = pc / (pc - cc)
+                out.append([px + (cx - px) * t, py + (cy - py) * t])
+            out.append([cx, cy])
+        elif pc <= 0.0:
+            t = pc / (pc - cc)
+            out.append([px + (cx - px) * t, py + (cy - py) * t])
+    return clean_poly(out)
+
+
+def _round_poly(pts):
+    return [[round(q[0], 1), round(q[1], 1)] for q in pts]
+
+
+def _polys_intersect(a, b):
+    """True if polygons a and b overlap (an edge crossing, or a
+    vertex of one inside the other - which also covers one polygon
+    sitting entirely inside the other)."""
+    for i in range(len(a)):
+        for j in range(len(b)):
+            if _segments_cross(a[i], a[(i + 1) % len(a)],
+                               b[j], b[(j + 1) % len(b)]):
+                return True
+    if point_in_polygon(a[0][0], a[0][1], b) or \
+            point_in_polygon(b[0][0], b[0][1], a):
+        return True
+    return False
+
+
+def subtract_polygon(subject, clip):
+    """subject minus clip (both polygons), as a list of polygons.
+    The clip must be convex; a concave clip is triangulated first
+    by the caller. Pieces may overlap - they are a union."""
+    sub = clean_poly(subject)
+    clp = clean_poly(clip)
+    if len(sub) < 3 or len(clp) < 3:
+        return [sub] if len(sub) >= 3 else []
+    if abs(polygon_area(sub)) < BARRIER_MIN_AREA:
+        return []
+    if abs(polygon_area(clp)) < BARRIER_MIN_AREA:
+        return [sub]
+    if polygon_area(clp) < 0:
+        clp = list(reversed(clp))   # interior on the left of each edge
+    if not _polys_intersect(sub, clp):
+        return [sub]   # nowhere near the clip: leave it alone
+    pieces = []
+    seen = set()
+    for i in range(len(clp)):
+        ax, ay = clp[i]
+        bx, by = clp[(i + 1) % len(clp)]
+        piece = _clip_halfplane(sub, ax, ay, bx, by)
+        if len(piece) >= 3 and abs(polygon_area(piece)) >= BARRIER_MIN_AREA:
+            piece = _round_poly(piece)
+            key = tuple((q[0], q[1]) for q in piece)
+            if key not in seen:
+                seen.add(key)
+                pieces.append(piece)
+    return pieces
+
+
+def subtract_rect(poly, x0, y0, x1, y1):
+    """poly minus an axis-aligned rectangle (x0, y0, x1, y1)."""
+    return subtract_polygon(poly, [[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+
+
+def triangulate(pts):
+    """Ear clipping: a (possibly concave) polygon as a list of
+    triangles. Returns [] if the polygon is degenerate."""
+    poly = clean_poly(pts)
+    if len(poly) < 3 or abs(polygon_area(poly)) < BARRIER_MIN_AREA:
+        return []
+    if polygon_area(poly) < 0:
+        poly = list(reversed(poly))
+    work = [list(q) for q in poly]
+    tris = []
+    guard = 0
+    while len(work) > 3 and guard < 100:
+        guard += 1
+        n = len(work)
+        cut = False
+        for i in range(n):
+            a, b, c = work[i - 1], work[i], work[(i + 1) % n]
+            # convex corner? (left turn for a CCW polygon)
+            if (b[0] - a[0]) * (c[1] - b[1]) - \
+                    (b[1] - a[1]) * (c[0] - b[0]) <= 0:
+                continue
+            ear = True
+            for q in work:
+                if q is a or q is b or q is c:
+                    continue
+                if point_in_polygon(q[0], q[1], [a, b, c]):
+                    ear = False
+                    break
+            if ear:
+                tris.append([a, b, c])
+                del work[i]
+                cut = True
+                break
+        if not cut:
+            break   # degenerate (self-intersecting?) - give up
+    if len(work) == 3:
+        tris.append(work)
+    return tris
+
+
+def _segments_cross(p1, p2, p3, p4):
+    """True if segments p1-p2 and p3-p4 properly cross (not just
+    touching at a shared endpoint)."""
+    def cross(ax, ay, bx, by):
+        return ax * by - ay * bx
+    d1 = cross(p2[0] - p1[0], p2[1] - p1[1], p3[0] - p1[0], p3[1] - p1[1])
+    d2 = cross(p2[0] - p1[0], p2[1] - p1[1], p4[0] - p1[0], p4[1] - p1[1])
+    d3 = cross(p4[0] - p3[0], p4[1] - p3[1], p1[0] - p3[0], p1[1] - p3[1])
+    d4 = cross(p4[0] - p3[0], p4[1] - p3[1], p2[0] - p3[0], p2[1] - p3[1])
+    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0)) \
+        and d1 != 0 and d2 != 0 and d3 != 0 and d4 != 0
+
+
+def polygon_is_simple(pts):
+    """True if no two non-adjacent edges of the polygon cross
+    (a bowtie is not a real shape)."""
+    n = len(pts)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if i == j or (i + 1) % n == j or (j + 1) % n == i:
+                continue
+            if _segments_cross(pts[i], pts[(i + 1) % n],
+                               pts[j], pts[(j + 1) % n]):
+                return False
+    return True
+
+
+def erase_from_barriers(barriers, clip):
+    """Subtract `clip` (a rectangle [x0, y0, x1, y1] or a polygon
+    list of points) from every barrier polygon. Returns the new
+    list of polygons."""
+    if isinstance(clip, tuple) and len(clip) == 4 and \
+            all(isinstance(v, (int, float)) for v in clip):
+        clips = [[clip[0], clip[1]], [clip[2], clip[1]],
+                 [clip[2], clip[3]], [clip[0], clip[3]]]
+        clips = [clips]
+    else:
+        clp = clean_poly(clip)
+        if len(clp) < 3 or abs(polygon_area(clp)) < BARRIER_MIN_AREA:
+            return barriers
+        if _polygon_is_convex(clp):
+            clips = [clp]
+        else:
+            clips = triangulate(clp) or [clp]
+    out = []
+    for poly in barriers:
+        pieces = [poly]
+        for clp in clips:
+            nxt = []
+            for piece in pieces:
+                nxt.extend(subtract_polygon(piece, clp))
+            pieces = nxt
+            if not pieces:
+                break
+        out.extend(pieces)
+    return out[:BARRIER_MAX * 4]
+
+
+def _polygon_is_convex(pts):
+    """True if every turn of the polygon goes the same way."""
+    n = len(pts)
+    sign = 0
+    for i in range(n):
+        ax, ay = pts[i - 1]
+        bx, by = pts[i]
+        cx, cy = pts[(i + 1) % n]
+        cr = (bx - ax) * (cy - by) - (by - ay) * (cx - bx)
+        if cr != 0:
+            s = 1 if cr > 0 else -1
+            if sign == 0:
+                sign = s
+            elif sign != s:
+                return False
+    return True
+
+
+def level_barriers(lv):
+    """Normalize a level dict's barriers to a list of polygons
+    (each a list of [x, y] points, clamped to the field). A barrier
+    covering the pad or the dock is dropped - the level would be
+    unplayable."""
+    out = []
+    start = lv.get("start")
+    target = lv.get("target")
+    for b in lv.get("barriers", [])[:BARRIER_MAX]:
+        if not isinstance(b, (list, tuple)):
+            continue
+        pts = [[max(0.0, min(WIDTH, float(q[0]))),
+                max(0.0, min(HEIGHT, float(q[1])))]
+               for q in b[:BARRIER_MAX_PTS]
+               if isinstance(q, (list, tuple)) and len(q) == 2]
+        pts = clean_poly(pts)
+        if len(pts) < 3 or abs(polygon_area(pts)) < BARRIER_MIN_AREA:
+            continue
+        if start is not None and point_in_polygon(start[0], start[1], pts):
+            continue
+        if target is not None and point_in_polygon(target[0], target[1], pts):
+            continue
+        out.append(pts)
+    return out
 
 
 def path_position(pts, speed, phase, t, loop=False):
@@ -483,36 +786,47 @@ def planet_snapshot(specs, t):
     return out
 
 
-def wormhole_step(x, y, wormholes):
-    """If (x, y) is inside a wormhole mouth, return the other end."""
-    for (ax, ay, bx, by) in wormholes:
+def wormhole_step(x, y, wormholes, skip=-1):
+    """If (x, y) is inside a wormhole mouth, return the other end.
+    skip is a pair index to ignore: the cooldown only blocks
+    re-entering the pair just warped through (without it, a ship
+    standing in the exit mouth would warp straight back). A
+    different pair is never blocked, so two pairs side by side
+    both work. Returns (x, y, warped, pair)."""
+    for k, (ax, ay, bx, by) in enumerate(wormholes):
+        if k == skip:
+            continue
         if (x - ax) ** 2 + (y - ay) ** 2 < WORMHOLE_RADIUS ** 2:
-            return bx, by, True
+            return bx, by, True, k
         if (x - bx) ** 2 + (y - by) ** 2 < WORMHOLE_RADIUS ** 2:
-            return ax, ay, True
-    return x, y, False
+            return ax, ay, True, k
+    return x, y, False, -1
 
 
 def predict_path(x, y, vx, vy, specs, target, t0=0.0, wormholes=(),
-                 wh_cd=0.0, steps=600, dt=1.0 / 60.0):
+                 wh_cd=0.0, wh_pair=-1, steps=600, dt=1.0 / 60.0,
+                 barriers=()):
     """Simulate ahead; returns (points, outcome). Planet positions and
     wormholes are simulated too, so the preview stays honest on the
     moving levels."""
     points = [(x, y)]
     cd = wh_cd
+    last_pair = wh_pair
     for i in range(steps):
         t = t0 + (i + 1) * dt
         planets = planet_snapshot(specs, t)
         x, y, vx, vy = step_physics(x, y, vx, vy, planets, dt)
         cd = max(0.0, cd - dt)
-        if cd <= 0.0 and wormholes:
-            x, y, warped = wormhole_step(x, y, wormholes)
+        if wormholes:
+            x, y, warped, k = wormhole_step(
+                x, y, wormholes, skip=last_pair if cd > 0.0 else -1)
             if warped:
                 cd = WORMHOLE_COOLDOWN
+                last_pair = k
                 points.append(None)      # trail break at the jump
         if i % 3 == 0:
             points.append((x, y))
-        outcome = check_hit(x, y, planets, target)
+        outcome = check_hit(x, y, planets, target, barriers)
         if outcome:
             points.append((x, y))
             return points, outcome
@@ -568,7 +882,9 @@ def level_to_code(lv):
                             **({"repel": True} if p.get("repel") else {})}
                            for p in level_specs(lv)],
                "cores": [[c[0], c[1]] for c in lv["cores"]],
-               "wormholes": [list(w) for w in level_wormholes(lv)]}
+               "wormholes": [list(w) for w in level_wormholes(lv)],
+               "barriers": [[[q[0], q[1]] for q in poly]
+                            for poly in level_barriers(lv)]}
     raw = json.dumps(payload, separators=(",", ":"),
                      sort_keys=True).encode("utf-8")
     return LEVEL_CODE_PREFIX + base64.urlsafe_b64encode(
@@ -610,7 +926,7 @@ def code_to_level(code):
         raise ValueError("the code is corrupted or incomplete")
     if not isinstance(data, dict):
         raise ValueError("the code doesn't contain a level")
-    for field in ("planets", "cores", "wormholes"):
+    for field in ("planets", "cores", "wormholes", "barriers"):
         if field in data and not isinstance(data[field], list):
             raise ValueError(f"the code's {field} are malformed")
 
@@ -619,12 +935,12 @@ def code_to_level(code):
     sub = str(data.get("sub", ""))[:120]
     start = _code_point(data.get("start"), "start")
     target = _code_point(data.get("target"), "target")
-    par = int(_code_num(data.get("par", 2), 1, 6, "par"))
-    burns = int(_code_num(data.get("max_burns", 4), 2, 8, "max burns"))
+    par = int(_code_num(data.get("par", 2), 1, 20, "par"))
+    burns = int(_code_num(data.get("max_burns", 4), 2, 20, "max burns"))
     burns = max(par, burns)
 
     planets = []
-    for i, p in enumerate(data.get("planets", [])[:8]):
+    for i, p in enumerate(data.get("planets", [])[:24]):
         if not isinstance(p, dict):
             raise ValueError("a planet in the code is malformed")
         color = str(p.get("color", ""))
@@ -649,7 +965,7 @@ def code_to_level(code):
                 "phase": _code_num(orb.get("phase"), -7, 7, "orbit phase")}
         pth = p.get("path")
         if isinstance(pth, dict) and isinstance(pth.get("pts"), list) \
-                and 2 <= len(pth["pts"]) <= 8:
+                and 2 <= len(pth["pts"]) <= 20:
             planet["path"] = {
                 "pts": [[_code_num(q[0], 0, WIDTH, "path x"),
                          _code_num(q[1], 0, HEIGHT, "path y")]
@@ -664,10 +980,10 @@ def code_to_level(code):
                 del planet["path"]
         planets.append(planet)
 
-    cores = [_code_point(c, "core") for c in data.get("cores", [])[:12]]
+    cores = [_code_point(c, "core") for c in data.get("cores", [])[:24]]
 
     wormholes = []
-    for w in data.get("wormholes", [])[:3]:
+    for w in data.get("wormholes", [])[:8]:
         if not isinstance(w, (list, tuple)) or len(w) != 4:
             raise ValueError("a wormhole in the code is malformed")
         wormholes.append((_code_num(w[0], 0, WIDTH, "wormhole x"),
@@ -675,9 +991,21 @@ def code_to_level(code):
                           _code_num(w[2], 0, WIDTH, "wormhole x"),
                           _code_num(w[3], 0, HEIGHT, "wormhole y")))
 
+    raw_barriers = []
+    for b in data.get("barriers", [])[:BARRIER_MAX]:
+        if not isinstance(b, (list, tuple)):
+            raise ValueError("a barrier in the code is malformed")
+        pts = [[_code_num(q[0], 0, WIDTH, "barrier x"),
+                _code_num(q[1], 0, HEIGHT, "barrier y")]
+               for q in b[:BARRIER_MAX_PTS]
+               if isinstance(q, (list, tuple)) and len(q) == 2]
+        raw_barriers.append(pts)
+    barriers = level_barriers({"barriers": raw_barriers,
+                               "start": start, "target": target})
+
     return {"name": name, "sub": sub, "start": start, "target": target,
             "par": par, "max_burns": burns, "planets": planets,
-            "cores": cores, "wormholes": wormholes}
+            "cores": cores, "wormholes": wormholes, "barriers": barriers}
 
 
 # ----------------------------------------------------------------------
@@ -745,14 +1073,17 @@ class OrbitalGame:
         self.save = self.load_save()
         settings = self.save["settings"]
         self.S = float(settings["scale"])
+        self.T = float(settings["text_scale"])
         # Every widget without an explicit font (all the buttons, the
         # pager arrows, spinboxes, the name entry) uses TkDefaultFont -
         # size it from the window scale too, so at 1.5x ALL the text
         # grows, not just the headings.
-        tkfont.nametofont("TkDefaultFont").configure(size=self.FS(10))
+        tkfont.nametofont("TkDefaultFont").configure(size=self.BS(10))
         self.mode = "play"           # play | editor
         self.editor = None
         self.session_levels = []     # generated missions (not persisted)
+        self._playtest_pos = None    # slot in session_levels of the
+        # current playtest level (None: no playtest yet this edit)
 
         self.hud1 = tk.Label(root, font=("Consolas", self.FS(13), "bold"),
                              anchor="w", bg="#0b1020", fg=COLORS["text"])
@@ -764,8 +1095,12 @@ class OrbitalGame:
                                 height=int(HEIGHT * self.S),
                                 bg=COLORS["bg"], highlightthickness=0)
         self.canvas.pack()
+        # wraplength caps this long one-line readout: at big text sizes
+        # it wraps to a second line instead of widening the window
+        # (same trick as the editor hint below).
         self.stats = tk.Label(root, font=("Consolas", self.FS(11)), anchor="w",
-                              bg="#0b1020", fg=COLORS["text"])
+                              bg="#0b1020", fg=COLORS["text"],
+                              wraplength=int(950 * self.S))
         self.stats.pack(fill="x")
 
         # sliders + toggles row (as in the web edition)
@@ -804,7 +1139,7 @@ class OrbitalGame:
                        bg="#0b1020", fg=COLORS["text"], takefocus=0,
                        selectcolor="#16213c", activebackground="#0b1020",
                        activeforeground=COLORS["text"],
-                       font=("Consolas", self.FS(10)),
+                       font=("Consolas", self.BS(10)),
                        command=self._preview_toggled).pack(side="left",
                                                            padx=(12, 0))
         self.sound_var = tk.BooleanVar(value=bool(settings["sound"]))
@@ -812,20 +1147,14 @@ class OrbitalGame:
                        bg="#0b1020", fg=COLORS["text"], takefocus=0,
                        selectcolor="#16213c", activebackground="#0b1020",
                        activeforeground=COLORS["text"],
-                       font=("Consolas", self.FS(10)),
+                       font=("Consolas", self.BS(10)),
                        command=self._sound_toggled).pack(side="left")
         self.beeper.enabled = self.sound_var.get()
-        self.pause_btn = tk.Button(row, text="Pause", command=self.toggle_pause,
+        self.pause_btn = tk.Button(row, text="Pause (H)", command=self.toggle_pause,
                                    bg="#16213c", fg=COLORS["text"], takefocus=0,
                                    activebackground="#22335c", relief="flat",
                                    padx=10, pady=2)
         self.pause_btn.pack(side="right", padx=8)
-        # window scale buttons (fixed layout at each size; applies at once)
-        for s in reversed(SCALES):
-            tk.Button(row, text=("%g×" % s), command=lambda v=s: self.apply_scale(v),
-                      bg="#16213c", fg=COLORS["text"], takefocus=0,
-                      activebackground="#22335c", relief="flat",
-                      padx=6, pady=2).pack(side="right", padx=2)
 
         # buttons + level pager
         bar = tk.Frame(root, bg="#0b1020")
@@ -839,12 +1168,76 @@ class OrbitalGame:
                           ("Share level", self.share_level),
                           ("Paste level", self.paste_level_dialog),
                           ("Delete level", self.delete_saved_level),
+                          ("My levels", self.my_levels_dialog),
                           ("Clear ghost", self.clear_ghost)):
             btn = tk.Button(bar, text=text, command=cmd, bg="#16213c",
                             fg=COLORS["text"], activebackground="#22335c",
                             relief="flat", padx=10, pady=4, takefocus=0)
             btn.pack(side="left", padx=4, pady=4)
             self.bar_btns[text] = btn
+        # Generate ghosts: when off, wins record no ghost and no saved
+        # ghost is drawn. Saved ghosts are kept, so turning it back on
+        # brings them back.
+        self.ghosts_var = tk.BooleanVar(value=bool(settings["ghosts"]))
+        tk.Checkbutton(bar, text="Ghosts", variable=self.ghosts_var,
+                       bg="#0b1020", fg=COLORS["text"], takefocus=0,
+                       selectcolor="#16213c", activebackground="#0b1020",
+                       activeforeground=COLORS["text"],
+                       font=("Consolas", self.BS(10)),
+                       command=self._ghosts_toggled).pack(side="left",
+                                                          padx=(6, 0), pady=4)
+        # Window and text scales live in their own row, kept separate:
+        # Window resizes the whole fixed layout, Text only grows the
+        # fonts. The active choice in each group is highlighted.
+        srow = tk.Frame(root, bg="#0b1020")
+        srow.pack(fill="x")
+        tk.Label(srow, text="Window:", bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10))).pack(side="left", padx=(8, 2))
+        self.scale_btns = {}
+        for s in SCALES:
+            btn = tk.Button(srow, text=("%g×" % s),
+                            command=lambda v=s: self.apply_scale(v),
+                            bg="#16213c", fg=COLORS["text"], takefocus=0,
+                            activebackground="#22335c", relief="flat",
+                            padx=6, pady=2)
+            btn.pack(side="left", padx=2)
+            self.scale_btns[s] = btn
+        tk.Label(srow, text="Text:", bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10))).pack(side="left",
+                                                     padx=(24, 2))
+        self.text_btns = {}
+        for t in TEXT_SCALES:
+            btn = tk.Button(srow, text=("%g×" % t),
+                            command=lambda v=t: self.apply_text_scale(v),
+                            bg="#16213c", fg=COLORS["text"], takefocus=0,
+                            activebackground="#22335c", relief="flat",
+                            padx=6, pady=2)
+            btn.pack(side="left", padx=2)
+            self.text_btns[t] = btn
+        self._sync_scale_buttons()
+        # extra toggles, in their own row: orbit paths and the grid draw
+        # on the field, labels hide the planet name tags, effects is
+        # particles + starfield twinkle, auto-advance jumps to the next
+        # mission after a win, pause-on-unfocus auto-pauses a flight
+        # when the window loses focus.
+        orow = tk.Frame(root, bg="#0b1020")
+        orow.pack(fill="x")
+        self._opt_vars = {}
+        for text, key in (("Orbit paths", "orbit_paths"),
+                          ("Labels", "labels"),
+                          ("Effects", "effects"),
+                          ("Auto-advance", "auto_advance"),
+                          ("Pause on unfocus", "pause_on_unfocus"),
+                          ("Grid", "grid")):
+            var = tk.BooleanVar(value=bool(settings[key]))
+            self._opt_vars[key] = var
+            tk.Checkbutton(orow, text=text, variable=var, bg="#0b1020",
+                           fg=COLORS["text"], takefocus=0,
+                           selectcolor="#16213c", activebackground="#0b1020",
+                           activeforeground=COLORS["text"],
+                           font=("Consolas", self.BS(10)),
+                           command=lambda k=key: self._opt_toggled(k)
+                           ).pack(side="left", padx=(8, 2))
         pager = tk.Frame(root, bg="#0b1020")
         pager.pack(fill="x")
         pf = tk.Frame(pager, bg="#0b1020")
@@ -866,51 +1259,69 @@ class OrbitalGame:
                                     pady=4)
         self.pager_next.pack(side="left", padx=4, pady=4)
 
-        # editor bar (packed only in editor mode)
+        # Editor bar is control chrome like the button bar, so its
+        # fonts use BS() (window scale only) - FS() text here would
+        # push the bar wider than the field at big text sizes.
         self.ed_bar = tk.Frame(root, bg="#0b1020")
         self.ed_tool = tk.StringVar(value="planet")
+        self.ed_tool.trace_add("write", self._ed_tool_changed)
         for text, tool in (("Planet", "planet"), ("Start", "start"),
                            ("Dock", "target"), ("Core", "core"),
                            ("Wormhole", "wormhole"), ("Orbit", "orbit"),
-                           ("Path", "path"),
+                           ("Path", "path"), ("Barrier", "barrier"),
+                           ("Del Bar", "delbarrier"),
                            ("Erase", "erase")):
             tk.Radiobutton(self.ed_bar, text=text, value=tool,
                            variable=self.ed_tool, bg="#0b1020",
                            fg=COLORS["text"], takefocus=0,
                            selectcolor="#22335c", activebackground="#0b1020",
                            activeforeground=COLORS["text"],
-                           font=("Consolas", self.FS(10)),
-                           indicatoron=False, padx=8, pady=3).pack(side="left", padx=2)
+                           font=("Consolas", self.BS(10)),
+                           indicatoron=False, padx=2, pady=3).pack(side="left", padx=1)
         tk.Label(self.ed_bar, text="Name", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.FS(10))).pack(side="left", padx=(10, 2))
-        self.ed_name = tk.Entry(self.ed_bar, width=14, bg="#16213c",
+                 font=("Consolas", self.BS(10))).pack(side="left", padx=(4, 2))
+        self.ed_name = tk.Entry(self.ed_bar, width=8, bg="#16213c",
                                 fg=COLORS["text"], insertbackground="#dbe7ff",
-                                relief="flat", font=("Consolas", self.FS(10)))
+                                relief="flat", font=("Consolas", self.BS(10)))
         self.ed_name.pack(side="left")
         tk.Label(self.ed_bar, text="Par", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.FS(10))).pack(side="left", padx=(8, 2))
-        self.ed_par = tk.Spinbox(self.ed_bar, from_=1, to=6, width=3,
+                 font=("Consolas", self.BS(10))).pack(side="left", padx=(2, 2))
+        self.ed_par = tk.Spinbox(self.ed_bar, from_=1, to=20, width=3,
                                  bg="#16213c", fg=COLORS["text"],
-                                 relief="flat", font=("Consolas", self.FS(10)))
+                                 relief="flat", font=("Consolas", self.BS(10)))
         self.ed_par.pack(side="left")
         tk.Label(self.ed_bar, text="Burns", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.FS(10))).pack(side="left", padx=(8, 2))
-        self.ed_burns = tk.Spinbox(self.ed_bar, from_=2, to=8, width=3,
+                 font=("Consolas", self.BS(10))).pack(side="left", padx=(2, 2))
+        self.ed_burns = tk.Spinbox(self.ed_bar, from_=2, to=20, width=3,
                                    bg="#16213c", fg=COLORS["text"],
-                                   relief="flat", font=("Consolas", self.FS(10)))
+                                   relief="flat", font=("Consolas", self.BS(10)))
         self.ed_burns.pack(side="left")
         for text, cmd in (("Playtest", self.editor_playtest),
                           ("Save level", self.editor_save),
                           ("Clear", self.editor_clear),
+                          ("Rename", self.rename_planet),
                           ("Exit editor", self.exit_editor)):
-            tk.Button(self.ed_bar, text=text, command=cmd, bg="#16213c",
-                      fg=COLORS["text"], activebackground="#22335c",
-                      relief="flat", padx=8, pady=3,
-                      takefocus=0).pack(side="left", padx=3)
+            btn = tk.Button(self.ed_bar, text=text, command=cmd,
+                            bg="#16213c", fg=COLORS["text"],
+                            activebackground="#22335c", relief="flat",
+                            padx=5, pady=3, takefocus=0)
+            btn.pack(side="left", padx=2)
+            if text == "Rename":
+                self.ed_rename_btn = btn
         self.ed_hint = tk.Label(root, bg="#0b1020", fg=COLORS["dim"],
                                 anchor="w", font=("Consolas", self.FS(10)),
                                 justify="left",
                                 wraplength=int(950 * self.S))
+        self.ed_sub_row = tk.Frame(root, bg="#0b1020")
+        tk.Label(self.ed_sub_row, text="Description:", bg="#0b1020",
+                 fg=COLORS["dim"],
+                 font=("Consolas", self.BS(10))).pack(side="left",
+                                                      padx=(2, 4))
+        self.ed_sub = tk.Entry(self.ed_sub_row, bg="#16213c",
+                               fg=COLORS["text"],
+                               insertbackground="#dbe7ff", relief="flat",
+                               font=("Consolas", self.BS(10)))
+        self.ed_sub.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         # result overlay (hidden until a run ends)
         self.overlay = tk.Frame(root, bg="#101a30", bd=2, relief="ridge")
@@ -944,24 +1355,29 @@ class OrbitalGame:
                   relief="flat", padx=10, pady=4).pack(side="left", padx=4)
 
         self.canvas.bind("<ButtonPress-1>", self.on_press)
+        self.canvas.bind("<Double-Button-1>", self.on_double_click)
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
         root.bind("<ButtonRelease-1>", self.on_release_anywhere)
-        root.bind("<space>", lambda _e: self.space_action())
-        root.bind("<KeyPress-r>", lambda _e: self.reset())
-        root.bind("<KeyPress-R>", lambda _e: self.reset())
-        root.bind("<KeyPress-u>", lambda _e: self.undo())
-        root.bind("<KeyPress-U>", lambda _e: self.undo())
-        root.bind("<KeyPress-n>", lambda _e: self.goto(self.level_i + 1))
-        root.bind("<KeyPress-N>", lambda _e: self.goto(self.level_i + 1))
-        root.bind("<KeyPress-p>", lambda _e: self.goto(self.level_i - 1))
-        root.bind("<KeyPress-P>", lambda _e: self.goto(self.level_i - 1))
-        root.bind("<Escape>", lambda _e: self.toggle_pause())
-        root.bind("<Left>", lambda _e: self.nudge_aim(-2, 0))
-        root.bind("<Right>", lambda _e: self.nudge_aim(2, 0))
-        root.bind("<Up>", lambda _e: self.nudge_aim(0, 4))
-        root.bind("<Down>", lambda _e: self.nudge_aim(0, -4))
-        root.bind("<MouseWheel>", self.on_wheel)
+        self._key("<space>", self.space_action)
+        self._key("<KeyPress-r>", self.reset)
+        self._key("<KeyPress-R>", self.reset)
+        self._key("<KeyPress-u>", self.undo)
+        self._key("<KeyPress-U>", self.undo)
+        self._key("<KeyPress-n>", lambda: self.goto(self.level_i + 1))
+        self._key("<KeyPress-N>", lambda: self.goto(self.level_i + 1))
+        self._key("<KeyPress-p>", lambda: self.goto(self.level_i - 1))
+        self._key("<KeyPress-P>", lambda: self.goto(self.level_i - 1))
+        self._key("<KeyPress-h>", self.toggle_pause)
+        self._key("<KeyPress-H>", self.toggle_pause)
+        self._key("<Left>", lambda: self.nudge_aim(-2, 0))
+        self._key("<Right>", lambda: self.nudge_aim(2, 0))
+        self._key("<Up>", lambda: self.nudge_aim(0, 4))
+        self._key("<Down>", lambda: self.nudge_aim(0, -4))
+        root.bind("<MouseWheel>", self._on_wheel_guarded)
+        root.bind("<KeyRelease-Shift_L>", self._on_shift_release)
+        root.bind("<KeyRelease-Shift_R>", self._on_shift_release)
+        root.bind("<FocusOut>", self._on_focus_out)
         root.focus_set()
 
         self.level_i = 0
@@ -975,6 +1391,15 @@ class OrbitalGame:
 
     # ---------------- scale helpers ----------------
     def FS(self, pts):
+        """Game-text size: window scale times text scale. Control
+        chrome (buttons, checkboxes) uses BS() instead, so the fixed
+        layout never widens when the text grows."""
+        return max(8, int(round(pts * self.S * self.T)))
+
+    def BS(self, pts):
+        """Button/chrome text size: window scale only. The button bar
+        already fills the window at 1x, so letting its text grow with
+        the text scale would push the window wider."""
         return max(8, int(round(pts * self.S)))
 
     def X(self, v):
@@ -992,18 +1417,23 @@ class OrbitalGame:
         self.root.geometry("%dx%d" % (self.root.winfo_reqwidth(),
                                       self.root.winfo_reqheight()))
 
-    def apply_scale(self, scale):
-        """Change the window scale: the layout is rebuilt at the new
-        fixed size (resizing stays locked; nothing shifts mid-game)."""
-        if scale == self.S or scale not in SCALES:
-            return
-        self.save["settings"]["scale"] = scale
-        self.store_save()
+    def _sync_scale_buttons(self):
+        """Highlight the active choice in each scale group."""
+        for s, btn in getattr(self, "scale_btns", {}).items():
+            btn.config(bg="#2a4a7a" if s == self.S else "#16213c")
+        for t, btn in getattr(self, "text_btns", {}).items():
+            btn.config(bg="#2a4a7a" if t == self.T else "#16213c")
+
+    def _rebuild_ui(self):
+        """Rebuild the whole layout at the current scales (window
+        stays locked; nothing shifts mid-game). Keeps the open level
+        and any editor work in progress."""
         keep = self.level_i
         ed_keep = None
         if self.mode == "editor" and self.editor is not None:
             ed_keep = (self.editor, self.ed_name.get(), self.ed_par.get(),
-                       self.ed_burns.get(), self.ed_tool.get())
+                       self.ed_burns.get(), self.ed_tool.get(),
+                       self.ed_sub.get())
         for w in self.root.winfo_children():
             w.destroy()
         self.__init__(self.root)
@@ -1021,13 +1451,41 @@ class OrbitalGame:
             self.ed_burns.delete(0, "end")
             self.ed_burns.insert(0, ed_keep[3])
             self.ed_tool.set(ed_keep[4])
+            self.ed_sub.delete(0, "end")
+            self.ed_sub.insert(0, ed_keep[5])
         self._fit_window()
+
+    def apply_scale(self, scale):
+        """Change the window scale: the layout is rebuilt at the new
+        fixed size."""
+        if scale == self.S or scale not in SCALES:
+            return
+        self.save["settings"]["scale"] = scale
+        self.store_save()
+        self._rebuild_ui()
+
+    def apply_text_scale(self, text_scale):
+        """Change the text scale: game text grows (HUD, mission text,
+        canvas labels), the field and the window stay the same size.
+        Buttons and checkboxes keep window-scale sizing (BS()) so the
+        fixed layout never widens. Same rebuild as a window-scale
+        change, since every font size comes from FS()/BS()."""
+        if text_scale == self.T or text_scale not in TEXT_SCALES:
+            return
+        self.save["settings"]["text_scale"] = text_scale
+        self.store_save()
+        self._rebuild_ui()
 
     # ---------------- save / progress ----------------
     def load_save(self):
         fresh = {"unlocked": 0, "stars": {}, "cores": {}, "flybys": {},
-                 "ghost": {}, "custom": [],
-                 "settings": {"sound": True, "preview": True, "scale": 1.0},
+                 "ghost": {}, "custom": [], "recent_codes": [],
+                 "settings": {"sound": True, "preview": True,
+                              "ghosts": True, "scale": 1.0,
+                              "text_scale": 1.0, "orbit_paths": True,
+                              "labels": True, "effects": True,
+                              "auto_advance": False,
+                              "pause_on_unfocus": True, "grid": False},
                  "v": 4}
         try:
             with open(SAVE_FILE, "r", encoding="utf-8") as fh:
@@ -1048,29 +1506,41 @@ class OrbitalGame:
             if data.get("v") == 4:
                 out["flybys"] = dict(data.get("flybys", {}))
                 # Ghost entries are drawn from directly, so keep only
-                # well-formed ones: a dict whose pts are [x, y] number
-                # pairs. Anything else is dropped, not crashed on.
+                # well-formed ones: a dict whose segments are lists of
+                # [x, y] number pairs. Old saves stored one flat "pts"
+                # list; those migrate to a single segment. Anything else
+                # is dropped, not crashed on.
                 ghosts = {}
                 for key, gh in data.get("ghost", {}).items():
                     if not isinstance(gh, dict):
                         continue
-                    pts = gh.get("pts")
-                    if not isinstance(pts, list) or len(pts) < 2:
+                    segs = gh.get("segs")
+                    if not isinstance(segs, list):
+                        pts = gh.get("pts")
+                        segs = [pts] if isinstance(pts, list) else None
+                    if not segs:
                         continue
-                    clean = []
-                    for q in pts:
-                        if not isinstance(q, (list, tuple)) \
-                                or len(q) != 2 \
-                                or not all(isinstance(v, (int, float))
-                                           for v in q):
-                            clean = None
-                            break
-                        clean.append([q[0], q[1]])
-                    if clean is None:
+                    clean_segs = []
+                    for seg in segs:
+                        if not isinstance(seg, list) or len(seg) < 2:
+                            continue
+                        clean = []
+                        bad = False
+                        for q in seg:
+                            if not isinstance(q, (list, tuple)) \
+                                    or len(q) != 2 \
+                                    or not all(isinstance(v, (int, float))
+                                               for v in q):
+                                bad = True
+                                break
+                            clean.append([q[0], q[1]])
+                        if not bad:
+                            clean_segs.append(clean)
+                    if not clean_segs:
                         continue
                     try:
                         ghosts[str(key)] = {
-                            "pts": clean,
+                            "segs": clean_segs,
                             "burns": int(gh.get("burns", 99)),
                             "stars": int(gh.get("stars", 0))}
                     except Exception:
@@ -1084,15 +1554,57 @@ class OrbitalGame:
                             and isinstance(lv.get("cores"), list):
                         custom.append(lv)
                 out["custom"] = custom
+                # Recently pasted / imported level codes, newest first.
+                out["recent_codes"] = [
+                    str(c) for c in data.get("recent_codes", [])
+                    if isinstance(c, str) and c.startswith(LEVEL_CODE_PREFIX)
+                ][:8]
+                # Records keyed past the last persistent level are
+                # leftovers from session levels (Random / playtest):
+                # they share the index space but vanish when the game
+                # closes, so a later custom level at that index would
+                # inherit a Random run's stars, cores or ghost. Drop
+                # them, and clamp surviving core bests to what the
+                # level actually has, so "5/0 cores" can never show.
+                last = len(LEVELS) + len(out["custom"])
+                levels = LEVELS + out["custom"]
+                for field in ("stars", "cores", "flybys", "ghost"):
+                    kept = {}
+                    for k, v in out[field].items():
+                        try:
+                            ki = int(k)
+                        except (TypeError, ValueError):
+                            continue
+                        if 0 <= ki < last:
+                            kept[k] = v
+                    out[field] = kept
+                for k, v in list(out["cores"].items()):
+                    try:
+                        total = len(levels[int(k)].get("cores", []))
+                        if int(v) > total:
+                            out["cores"][k] = total
+                    except (TypeError, ValueError, IndexError):
+                        continue
                 st = data.get("settings", {})
                 if not isinstance(st, dict):
                     st = {}
                 out["settings"] = {
                     "sound": bool(st.get("sound", True)),
                     "preview": bool(st.get("preview", True)),
-                    "scale": float(st.get("scale", 1.0))}
+                    "ghosts": bool(st.get("ghosts", True)),
+                    "scale": float(st.get("scale", 1.0)),
+                    "text_scale": float(st.get("text_scale", 1.0)),
+                    "orbit_paths": bool(st.get("orbit_paths", True)),
+                    "labels": bool(st.get("labels", True)),
+                    "effects": bool(st.get("effects", True)),
+                    "auto_advance": bool(st.get("auto_advance", False)),
+                    "pause_on_unfocus": bool(st.get("pause_on_unfocus",
+                                                    True)),
+                    "grid": bool(st.get("grid", False))}
                 if out["settings"]["scale"] not in SCALES:
                     out["settings"]["scale"] = 1.0
+                if out["settings"]["text_scale"] not in TEXT_SCALES:
+                    out["settings"]["text_scale"] = 1.0
             return out
         except Exception:
             # A save with wrong-typed fields is corrupt; starting
@@ -1133,16 +1645,30 @@ class OrbitalGame:
     def record_ghost(self, stars):
         """Keep the flight path of the best run as a faint ghost line.
         A run replaces the ghost when it earns more stars, or the same
-        stars in fewer burns."""
+        stars in fewer burns. Wormhole jumps break the trail with a
+        None marker, so the ghost is stored as segments - one per
+        stretch between warps - and the path into the first wormhole
+        is kept instead of being wiped. Off while the Ghosts setting
+        is off: nothing is recorded."""
+        if not self.save["settings"].get("ghosts", True):
+            return
         key = str(self.level_i)
         old = self.save["ghost"].get(key)
         if old and (old.get("stars", 0) > stars or
                     (old.get("stars", 0) == stars and
                      old.get("burns", 99) <= self.burns_used)):
             return
-        pts = [[round(px), round(py)] for (px, py) in self.trail[::3]]
-        if len(pts) >= 2:
-            self.save["ghost"][key] = {"pts": pts, "burns": self.burns_used,
+        segs = []
+        for seg in self._segments(self.trail):
+            pts = [[round(px), round(py)] for (px, py) in seg[::3]]
+            last = [round(seg[-1][0]), round(seg[-1][1])]
+            if pts and pts[-1] != last:
+                pts.append(last)
+            if len(pts) >= 2:
+                segs.append(pts)
+        if segs:
+            self.save["ghost"][key] = {"segs": segs,
+                                       "burns": self.burns_used,
                                        "stars": stars}
 
     def campaign_totals(self):
@@ -1161,6 +1687,7 @@ class OrbitalGame:
         self.lv = lv
         self.specs = level_specs(lv)
         self.wormholes = level_wormholes(lv)
+        self.barriers = level_barriers(lv)
         self.clock = 0.0
         self.planets = planet_snapshot(self.specs, 0.0)
         self.sx, self.sy = lv["start"]
@@ -1173,7 +1700,7 @@ class OrbitalGame:
         self.end_detail = ""
         self.crash_idx = None
         self.paused = False
-        self.pause_btn.config(text="Pause")
+        self.pause_btn.config(text="Pause (H)")
         self.x, self.y = float(self.sx), float(self.sy)
         self.vx = self.vy = 0.0
         self.trail = []
@@ -1183,6 +1710,7 @@ class OrbitalGame:
         self.power = 150.0
         self.has_aim = False         # no aim shown until the player aims
         self.wh_cd = 0.0
+        self.wh_pair = -1            # pair just warped through (-1: none)
         self.flyby_min = [1e9] * len(self.specs)
         self.flyby_flagged = set()
         self.flybys_done = 0
@@ -1220,13 +1748,44 @@ class OrbitalGame:
             return
         self.load_level(self.level_i)
 
+    def _key(self, seq, fn):
+        """Bind a hotkey that stays silent while the player is typing
+        in a text field (level name, description, dialogs). Without
+        this, typing 'r' in the level name would reset the mission,
+        and typing a space would launch the ship."""
+        def handler(_event):
+            w = self.root.focus_get()
+            if isinstance(w, (tk.Entry, tk.Text)):
+                return
+            fn()
+        self.root.bind(seq, handler)
+
+    def _on_wheel_guarded(self, event):
+        """Mouse wheel, ignored while a text field has focus so
+        scrolling over the editor's name box can't resize a planet."""
+        w = self.root.focus_get()
+        if isinstance(w, (tk.Entry, tk.Text)):
+            return
+        self.on_wheel(event)
+
     def toggle_pause(self):
         if self.mode == "editor" or self.state in ("won", "ended"):
             return
         self.paused = not self.paused
-        self.pause_btn.config(text="Resume" if self.paused else "Pause")
+        self.pause_btn.config(text="Resume (H)" if self.paused
+                              else "Pause (H)")
         if self.paused:
-            self.message = "Paused. Esc to resume."
+            self.message = "Paused. H to resume."
+
+    def _on_focus_out(self, _event):
+        """Auto-pause a flight when the window loses focus (alt-tab),
+        so the 25-second clock doesn't eat the run. Only mid-flight;
+        the Pause on unfocus setting turns it off."""
+        if self.mode != "play" or self.state != "fly" or self.paused:
+            return
+        if not self.save["settings"].get("pause_on_unfocus", True):
+            return
+        self.toggle_pause()
 
     def _sound_toggled(self):
         self.beeper.enabled = self.sound_var.get()
@@ -1236,6 +1795,29 @@ class OrbitalGame:
     def _preview_toggled(self):
         self.save["settings"]["preview"] = bool(self.preview_var.get())
         self.store_save()
+
+    def _ghosts_toggled(self):
+        self.save["settings"]["ghosts"] = bool(self.ghosts_var.get())
+        self.store_save()
+
+    def _opt_toggled(self, key):
+        """One handler for the extra settings row: store the toggle,
+        then let the next frame redraw (grid / routes / labels follow
+        their settings in draw_frame)."""
+        self.save["settings"][key] = bool(self._opt_vars[key].get())
+        self.store_save()
+        if key == "effects" and not self.save["settings"][key]:
+            # Un-light any twinkling stars right away instead of
+            # leaving them bright until the next twinkle beat.
+            for item, base in self._lit:
+                try:
+                    self.canvas.itemconfig(item, fill=base)
+                except tk.TclError:
+                    pass
+            self._lit = []
+            self.twinkle = []
+            self._twinkle_dirty = False
+        self.sync_ui()
 
     # ---------------- undo ----------------
     def push_undo(self):
@@ -1248,13 +1830,19 @@ class OrbitalGame:
             "cores": tuple(g for (_x, _y, g) in self.cores),
             "trail": list(self.trail), "flyby": list(self.flyby_min),
             "flagged": set(self.flyby_flagged), "wh_cd": self.wh_cd,
+            "wh_pair": self.wh_pair,
             "angle": self.angle_deg, "power": self.power,
             "has_aim": self.has_aim})
 
     def undo(self):
-        if self.mode != "play" or self.paused or not self.undo_stack:
-            if self.mode == "play" and not self.undo_stack:
-                self.message = "Nothing to undo."
+        if self.mode != "play" or self.paused \
+                or self.state in ("won", "ended"):
+            # no undo after the run is over: popping a snapshot
+            # would bring the flight back to life underneath the
+            # win / crash overlay
+            return
+        if not self.undo_stack:
+            self.message = "Nothing to undo."
             return
         snap = self.undo_stack.pop()
         self.state = snap["state"]
@@ -1270,6 +1858,7 @@ class OrbitalGame:
         self.flyby_min = snap["flyby"]
         self.flyby_flagged = snap["flagged"]
         self.wh_cd = snap["wh_cd"]
+        self.wh_pair = snap["wh_pair"]
         self.angle_deg, self.power = snap["angle"], snap["power"]
         self.has_aim = snap["has_aim"]
         self.end_reason = None
@@ -1340,6 +1929,20 @@ class OrbitalGame:
         self.angle_deg = max(-180.0, min(180.0, self.angle_deg + d_ang))
         self.power = max(POWER_MIN, min(POWER_MAX, self.power + d_power))
         self._sync_sliders()
+
+    def on_double_click(self, event):
+        """Double-click a planet in the editor to rename it. The
+        first click of the pair starts a drag, so clear it."""
+        if self.mode != "editor" or self.editor is None:
+            return
+        gx, gy = event.x / self.S, event.y / self.S
+        ed = self.editor
+        for i, p in enumerate(ed["planets"]):
+            if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
+                ed["sel"] = i
+                ed["drag"] = None
+                self.rename_planet()
+                return
 
     def on_press(self, event):
         gx, gy = event.x / self.S, event.y / self.S
@@ -1460,6 +2063,8 @@ class OrbitalGame:
     # ---------------- particles ----------------
     def spawn_particles(self, x, y, family, count, speed=60.0, life=0.5,
                         base_vx=0.0, base_vy=0.0, size=3.5):
+        if not self.save["settings"].get("effects", True):
+            return   # Effects off: no exhaust, warp, core or win bursts
         for _ in range(count):
             if len(self.particles) >= 48:
                 return
@@ -1507,13 +2112,18 @@ class OrbitalGame:
                 self.x, self.y, self.vx, self.vy = step_physics(
                     self.x, self.y, self.vx, self.vy, self.planets, PHYS_DT)
                 self.wh_cd = max(0.0, self.wh_cd - PHYS_DT)
-                if self.wh_cd <= 0.0 and self.wormholes:
-                    nx, ny, warped = wormhole_step(self.x, self.y,
-                                                   self.wormholes)
+                if self.wormholes:
+                    nx, ny, warped, k = wormhole_step(
+                        self.x, self.y, self.wormholes,
+                        skip=self.wh_pair if self.wh_cd > 0.0 else -1)
                     if warped:
                         self.x, self.y = nx, ny
                         self.wh_cd = WORMHOLE_COOLDOWN
-                        self.trail = []
+                        self.wh_pair = k
+                        # Mark the jump instead of wiping the trail: the
+                        # old self.trail = [] here is why ghosts never
+                        # kept the path into the first wormhole.
+                        self.trail.append(None)
                         self.spawn_particles(nx, ny, "warp", 10,
                                              speed=80.0, life=0.45)
                         self.beeper.warp()
@@ -1539,7 +2149,8 @@ class OrbitalGame:
         self._tick_count += 1
         if self._tick_count % 6 == 0:
             self.sync_ui()
-        if self._tick_count % 15 == 0 and not self.paused:
+        if self._tick_count % 15 == 0 and not self.paused \
+                and self.save["settings"].get("effects", True):
             # starfield twinkle: relight a few stars in a brighter shade
             rng = random.Random(self._tick_count)
             self.twinkle = [(rng.random() < 0.5, rng.randrange(110))
@@ -1556,7 +2167,8 @@ class OrbitalGame:
                 self.flyby_flagged.add(i)
                 self.beeper.flyby()
                 self.message = "Close flyby! Skimmed a planet."
-        outcome = check_hit(self.x, self.y, self.planets, (self.tx, self.ty))
+        outcome = check_hit(self.x, self.y, self.planets, (self.tx, self.ty),
+                            self.barriers)
         if outcome == "crash":
             label = ""
             for i, (px, py, r, _mu, _c, lab) in enumerate(self.planets):
@@ -1564,6 +2176,8 @@ class OrbitalGame:
                     label = lab
                     self.crash_idx = i
                     break
+            if not label:
+                label = "a barrier"
             self.spawn_particles(self.x, self.y, "danger", 14,
                                  speed=110.0, life=0.6)
             self.end_run("crash", label)
@@ -1601,15 +2215,25 @@ class OrbitalGame:
         self.flybys_done = self.count_flybys()
         self.spawn_particles(self.tx, self.ty, "gold", 16, speed=100.0,
                              life=0.6)
-        key = str(self.level_i)
-        self.save["stars"][key] = max(stars, self.save["stars"].get(key, 0))
+        # Session levels (Random / playtest) vanish when the game
+        # closes, so their results must not be saved: records are
+        # keyed by level index, and a saved record at a session
+        # index would be inherited by whatever custom level later
+        # takes that slot - a Random run's 3 stars and 5 cores
+        # showing up on a brand-new custom level ("5/0 cores").
+        persistent = self.level_i < len(LEVELS) + len(self.save["custom"])
+        if persistent:
+            key = str(self.level_i)
+            self.save["stars"][key] = max(stars,
+                                           self.save["stars"].get(key, 0))
         if self.is_campaign():
             self.save["unlocked"] = max(
                 self.save["unlocked"],
                 min(self.level_i + 1, len(LEVELS) - 1))
-        new_core_best = self.record_cores()
-        new_flyby_best = self.record_flybys()
-        self.record_ghost(stars)
+        new_core_best = self.record_cores() if persistent else False
+        new_flyby_best = self.record_flybys() if persistent else False
+        if persistent:
+            self.record_ghost(stars)
         self.store_save()
         self.beeper.win()
         got = sum(1 for (_x, _y, g) in self.cores if g)
@@ -1637,6 +2261,19 @@ class OrbitalGame:
                           title, "★" * stars + "☆" * (3 - stars), text,
                           show_next=show_next)
         self.sync_ui()
+        if self.save["settings"].get("auto_advance", False) and show_next:
+            lvl = self.level_i
+            self.root.after(1500, lambda: self._auto_advance(lvl))
+
+    def _auto_advance(self, level):
+        """Jump to the next mission after a win, if the player is
+        still looking at that win screen (no manual move since)."""
+        try:
+            if self.state == "won" and self.mode == "play" \
+                    and self.level_i == level:
+                self.goto(level + 1)
+        except tk.TclError:
+            pass   # the window closed in the meantime
 
     def end_run(self, reason, detail=""):
         self.state = "ended"
@@ -1717,6 +2354,12 @@ class OrbitalGame:
     def draw_static(self):
         c = self.canvas
         c.delete("all")
+        # The wipe takes the ghost lines with it, so drop the ghost
+        # cache too: _draw_ghost skips rebuilding when the key
+        # matches, and a stale key after a reset (R) left the ghost
+        # invisible until a new best run changed the saved ghost.
+        self._ghost_key = None
+        self.ghost_items = []
         X = self.X
         c.create_oval(X(self.sx - 12), X(self.sy - 12), X(self.sx + 12),
                       X(self.sy + 12), outline=COLORS["dim"], width=2,
@@ -1733,6 +2376,12 @@ class OrbitalGame:
         c.create_text(X(self.tx), X(self.ty + DOCK_RADIUS + 14), text="DOCK",
                       fill=COLORS["station"], font=("Consolas", self.FS(9)),
                       tags="static")
+        # Barriers are solid walls: a flat fill (no outline - an erased
+        # barrier is several overlapping pieces, and outlines would
+        # draw seams across its interior).
+        for pts in self.barriers:
+            c.create_polygon(*[X(v) for q in pts for v in q],
+                             fill=BARRIER_FILL, outline="", tags="static")
 
     def _create_dyn_items(self):
         """Create the moving canvas items ONCE per level. Flicker fix:
@@ -1741,6 +2390,16 @@ class OrbitalGame:
         ever moved / shown / hidden - never recreated."""
         c = self.canvas
         X = self.X
+        # Create settings-driven items already in the state their
+        # setting wants: creating them visible and hiding them in the
+        # next draw_frame flashed the grid / routes / labels for a
+        # frame on every reset (R).
+        grid_state = "normal" \
+            if self.save["settings"].get("grid", False) else "hidden"
+        routes_state = "normal" \
+            if self.save["settings"].get("orbit_paths", True) else "hidden"
+        labels_state = "normal" \
+            if self.save["settings"].get("labels", True) else "hidden"
         self.it_stars_far = []
         for (sx, sy, sr, col) in self.stars_far:
             self.it_stars_far.append(c.create_oval(
@@ -1753,8 +2412,45 @@ class OrbitalGame:
                 fill=col, outline=""))
         self._lit = []
         self._twinkle_dirty = False
-        self.it_ghost = c.create_line(0, 0, 0, 0, fill=COLORS["ghost"],
-                                      width=1, dash=(1, 4), state="hidden")
+        # faint coordinate grid (setting) - lines every 120 px with
+        # small numbers along the top and left edges
+        self.it_grid = []
+        for gx in range(120, WIDTH, 120):
+            self.it_grid.append(c.create_line(
+                X(gx), X(0), X(gx), X(HEIGHT), fill="#16213c", width=1,
+                state=grid_state))
+            self.it_grid.append(c.create_text(
+                X(gx), X(10), text=str(gx), fill=COLORS["dim"],
+                font=("Consolas", self.FS(9)), state=grid_state))
+        for gy in range(120, HEIGHT, 120):
+            self.it_grid.append(c.create_line(
+                X(0), X(gy), X(WIDTH), X(gy), fill="#16213c", width=1,
+                state=grid_state))
+            self.it_grid.append(c.create_text(
+                X(10), X(gy), text=str(gy), fill=COLORS["dim"],
+                font=("Consolas", self.FS(9)), state=grid_state))
+        # orbit circles and patrol routes (setting) - static per level,
+        # drawn under the planets
+        self.it_routes = []
+        for sp in self.specs:
+            if sp.get("orbit"):
+                orb = sp["orbit"]
+                self.it_routes.append(c.create_oval(
+                    X(orb["cx"] - orb["radius"]),
+                    X(orb["cy"] - orb["radius"]),
+                    X(orb["cx"] + orb["radius"]),
+                    X(orb["cy"] + orb["radius"]),
+                    outline="#3a5a8c", width=1, dash=(4, 4),
+                    state=routes_state))
+            elif sp.get("path"):
+                pts = sp["path"]["pts"]
+                if len(pts) >= 2:
+                    route = pts + [pts[0]] if sp["path"].get("loop") \
+                        else pts
+                    self.it_routes.append(c.create_line(
+                        *[X(v) for q in route for v in q],
+                        fill="#3a5a8c", width=1, dash=(4, 4),
+                        state=routes_state))
         self.it_planets = []
         for (px, py, r, _mu, color, label) in self.planets:
             if _mu < 0:   # repulsor: dashed orange push-ring, warm outline
@@ -1776,7 +2472,8 @@ class OrbitalGame:
                                fill="#ffffff", outline="", stipple="gray25")
             lab = c.create_text(X(px), X(py + r + 14), text=label,
                                 fill=COLORS["dim"],
-                                font=("Consolas", self.FS(9)))
+                                font=("Consolas", self.FS(9)),
+                                state=labels_state)
             self.it_planets.append({"well": well, "body": body, "hi": hi,
                                     "label": lab})
         self.it_worms = []
@@ -1843,6 +2540,27 @@ class OrbitalGame:
             segs.append(cur)
         return segs
 
+    def _draw_ghost(self, segs):
+        """Show the saved ghost line, one canvas line per segment so
+        wormhole jumps stay gaps instead of streaks. The lines are
+        rebuilt only when the ghost actually changes; an empty list
+        hides the ghost. New lines sit under the planets, where the
+        old single ghost line lived."""
+        key = tuple(tuple(tuple(p) for p in s) for s in segs) or None
+        if key == getattr(self, "_ghost_key", None):
+            return
+        self._ghost_key = key
+        for item in getattr(self, "ghost_items", []):
+            self.canvas.delete(item)
+        self.ghost_items = []
+        for seg in segs:
+            item = self.canvas.create_line(
+                0, 0, 0, 0, fill=COLORS["ghost"], width=1, dash=(1, 4))
+            self.canvas.coords(item, *self.PTS([v for pt in seg for v in pt]))
+            if self.it_planets:
+                self.canvas.tag_lower(item, self.it_planets[0]["body"])
+            self.ghost_items.append(item)
+
     def draw_frame(self):
         c = self.canvas
         X, PTS = self.X, self.PTS
@@ -1862,14 +2580,24 @@ class OrbitalGame:
                     base = c.itemcget(item, "fill")
                     c.itemconfig(item, fill=_blend(base, "#ffffff", 0.55))
                     self._lit.append((item, base))
-        # ghost of the best run on this mission
+        # grid and motion routes follow their settings (the items
+        # exist per level; toggling just shows or hides them)
+        grid_on = self.save["settings"].get("grid", False)
+        for item in self.it_grid:
+            c.itemconfig(item, state="normal" if grid_on else "hidden")
+        routes_on = self.save["settings"].get("orbit_paths", True)
+        for item in self.it_routes:
+            c.itemconfig(item, state="normal" if routes_on else "hidden")
+        # ghost of the best run on this mission, one line per segment
+        # so wormhole jumps stay gaps instead of streaks
         ghost = self.save["ghost"].get(str(self.level_i))
-        if ghost and self.state in ("aim", "fly") and len(ghost["pts"]) >= 2:
-            self._show(self.it_ghost,
-                       PTS([v for pt in ghost["pts"] for v in pt]))
+        if ghost and self.save["settings"].get("ghosts", True) \
+                and self.state in ("aim", "fly"):
+            self._draw_ghost(ghost["segs"])
         else:
-            self._hide(self.it_ghost)
+            self._draw_ghost([])
         # planets (they move on the orbiting levels)
+        labels_on = self.save["settings"].get("labels", True)
         for items, (px, py, r, _mu, _col, _lab) in zip(self.it_planets,
                                                        self.planets):
             c.coords(items["well"], X(px - r * 1.7), X(py - r * 1.7),
@@ -1879,6 +2607,8 @@ class OrbitalGame:
             c.coords(items["hi"], X(px - r * 0.35), X(py - r * 0.35),
                      X(px + r * 0.35), X(py + r * 0.35))
             c.coords(items["label"], X(px), X(py + r + 14))
+            c.itemconfig(items["label"],
+                         state="normal" if labels_on else "hidden")
         # wormhole mouths pulse gently
         for k, pair in enumerate(self.it_worms):
             ends = ((self.wormholes[k][0], self.wormholes[k][1]),
@@ -1894,9 +2624,13 @@ class OrbitalGame:
                 self._hide(item)
             else:
                 self._show(item)
-        sample = self.trail[::2]
-        if sample and sample[-1] != self.trail[-1]:
-            sample.append(self.trail[-1])
+        # Live trail: only the current stretch (after the last wormhole
+        # jump) is drawn, so no streak crosses the field at a warp.
+        # The full trail, jumps included, still goes to the ghost.
+        trail_segs = self._segments(self.trail)
+        sample = trail_segs[-1][::2] if trail_segs else []
+        if sample and sample[-1] != trail_segs[-1][-1]:
+            sample.append(trail_segs[-1][-1])
         if len(sample) >= 2:
             self._show(self.it_trail, PTS([p for pt in sample for p in pt]))
         else:
@@ -1912,7 +2646,8 @@ class OrbitalGame:
                 pts, outcome = predict_path(
                     self.x, self.y, vx, vy, self.specs, (self.tx, self.ty),
                     t0=self.clock, wormholes=self.wormholes,
-                    wh_cd=self.wh_cd)
+                    wh_cd=self.wh_cd, wh_pair=self.wh_pair,
+                    barriers=self.barriers)
                 prediction = (pts, outcome)
         else:
             self._hide(self.it_aim)
@@ -1927,7 +2662,8 @@ class OrbitalGame:
                 pts, outcome = predict_path(
                     self.x, self.y, self.vx + dvx, self.vy + dvy,
                     self.specs, (self.tx, self.ty), t0=self.clock,
-                    wormholes=self.wormholes, wh_cd=self.wh_cd)
+                    wormholes=self.wormholes, wh_cd=self.wh_cd,
+                    wh_pair=self.wh_pair, barriers=self.barriers)
                 prediction = (pts, outcome)
         else:
             self._hide(self.it_burn)
@@ -1984,39 +2720,64 @@ class OrbitalGame:
         self.sync_ui()
 
     # ---------------- level editor ----------------
+    @staticmethod
+    def _fresh_editor(lv):
+        """Build a complete editor dict from a level dict. This is
+        the ONE place an editor dict is made - enter_editor and
+        editor_clear both use it, so they can never drift apart and
+        leave a key out (a missing 'barriers' key once made every
+        redraw after Clear die, so nothing could be placed)."""
+        specs = level_specs(lv)
+        snap = planet_snapshot(specs, 0.0)
+        planets = []
+        for sp, pos in zip(specs, snap):
+            p = {"x": round(pos[0]), "y": round(pos[1]),
+                 "r": sp["r"], "color": sp["color"],
+                 "label": sp["label"]}
+            if sp.get("orbit"):
+                p["orbit"] = dict(sp["orbit"])
+            if sp.get("path"):
+                p["path"] = {"pts": [list(q) for q in sp["path"]["pts"]],
+                             "speed": sp["path"].get("speed", 60.0),
+                             "phase": sp["path"].get("phase", 0.0),
+                             "loop": sp["path"].get("loop") is True}
+            if sp.get("repel"):
+                p["repel"] = True
+            planets.append(p)
+        return {
+            "planets": planets,
+            "start": [lv["start"][0], lv["start"][1]],
+            "target": [lv["target"][0], lv["target"][1]],
+            "cores": [[c[0], c[1]] for c in lv["cores"]],
+            "wormholes": [list(w) for w in level_wormholes(lv)],
+            "barriers": [[list(q) for q in poly]
+                         for poly in level_barriers(lv)],
+            "drag": None, "sel": None, "worm_next": None,
+            "orbit_next": None, "path_next": None,
+            "custom_idx": None,
+            "barrier_poly": None, "barrier_rect": None,
+            "barrier_cur": None, "delbarrier_poly": None,
+            "delbarrier_rect": None, "delbarrier_cur": None}
+
     def enter_editor(self):
         if self.mode == "editor":
             return
         self.mode = "editor"
         if self.editor is None:
             lv = self.lv
-            specs = level_specs(lv)
-            snap = planet_snapshot(specs, 0.0)
-            planets = []
-            for sp, pos in zip(specs, snap):
-                p = {"x": round(pos[0]), "y": round(pos[1]),
-                     "r": sp["r"], "color": sp["color"],
-                     "label": sp["label"]}
-                if sp.get("orbit"):
-                    p["orbit"] = dict(sp["orbit"])
-                if sp.get("path"):
-                    p["path"] = {"pts": [list(q) for q in sp["path"]["pts"]],
-                                 "speed": sp["path"].get("speed", 60.0),
-                                 "phase": sp["path"].get("phase", 0.0),
-                                 "loop": sp["path"].get("loop") is True}
-                if sp.get("repel"):
-                    p["repel"] = True
-                planets.append(p)
-            self.editor = {
-                "planets": planets,
-                "start": [lv["start"][0], lv["start"][1]],
-                "target": [lv["target"][0], lv["target"][1]],
-                "cores": [[c[0], c[1]] for c in lv["cores"]],
-                "wormholes": [list(w) for w in level_wormholes(lv)],
-                "drag": None, "sel": None, "worm_next": None,
-                "orbit_next": None, "path_next": None}
+            self.editor = self._fresh_editor(lv)
+            self._playtest_pos = None
+            start = len(LEVELS)
+            if start <= self.level_i < start + len(self.save["custom"]):
+                # editing a saved custom: Save updates it in place
+                self.editor["custom_idx"] = self.level_i - start
+                shown_name = lv["name"]
+            else:
+                shown_name = lv["name"] + " copy"
             self.ed_name.delete(0, "end")
-            self.ed_name.insert(0, lv["name"] + " copy")
+            self.ed_name.insert(0, shown_name)
+            self.ed_sub.delete(0, "end")
+            self.ed_sub.insert(0, lv.get("sub", ""))
             self.ed_par.delete(0, "end")
             self.ed_par.insert(0, str(lv["par"]))
             self.ed_burns.delete(0, "end")
@@ -2026,6 +2787,7 @@ class OrbitalGame:
         # pack() appends it below the pager, where the fixed-size
         # window clips it out of sight (the "editor has no tools" bug).
         self.ed_bar.pack(fill="x", before=self.canvas)
+        self.ed_sub_row.pack(fill="x", before=self.canvas)
         self.ed_hint.pack(fill="x", before=self.canvas)
         self.ed_hint.config(
             text="Drag planets to move them - wheel over a planet "
@@ -2040,13 +2802,24 @@ class OrbitalGame:
                  "finish, wheel over a pathed planet = path speed. "
                  "Shift+click a pathed planet (Path tool) toggles LOOP: "
                  "it rides the route in a circle, back to the start, "
-                 "like an orbit, instead of ping-ponging.")
+                 "like an orbit, instead of ping-ponging. "
+                 "Barrier tool: drag a rectangle to make a solid wall "
+                 "(the ship crashes into it), or hold Shift and click "
+                 "to lay down polygon corners, then release Shift to "
+                 "close the shape - a barrier needs 3 corners and a "
+                 "real area, so a line makes nothing. "
+                 "Del Bar tool works the same way but cuts barrier out "
+                 "instead: drag a rectangle over part of a wall to cut "
+                 "it away, or Shift+click a shape - cutting a smaller "
+                 "shape out of the middle of a big one leaves a ring. "
+                 "Double-click a planet to rename it.")
         self.hud1.config(text="Level Editor")
         self.hud2.config(text="  Build a mission, then Playtest it or "
                               "Save level to keep it.")
         self.stats.config(text="  Editor mode - nothing is saved until "
                                "you press Save level.")
         self.ed_dirty = True
+        self.canvas.focus_set()
         self._fit_window()
 
     def exit_editor(self):
@@ -2054,7 +2827,9 @@ class OrbitalGame:
             return
         self.mode = "play"
         self.ed_bar.pack_forget()
+        self.ed_sub_row.pack_forget()
         self.ed_hint.pack_forget()
+        self.canvas.focus_set()
         self.load_level(self.level_i)
         self._fit_window()
 
@@ -2068,9 +2843,11 @@ class OrbitalGame:
             burns = int(self.ed_burns.get())
         except Exception:
             burns = 4
-        par = max(1, min(6, par))
-        burns = max(par, min(8, burns))
+        par = max(1, min(20, par))
+        burns = max(par, min(20, burns))
         name = (self.ed_name.get().strip() or "Custom mission") + name_suffix
+        sub = self.ed_sub.get().strip()[:120] \
+            or "A mission built in the editor."
         planets = []
         for p in ed["planets"]:
             q = dict(p)
@@ -2082,35 +2859,71 @@ class OrbitalGame:
                              "phase": q["path"].get("phase", 0.0),
                              "loop": q["path"].get("loop") is True}
             planets.append(q)
-        return {"name": name, "sub": "A mission built in the editor.",
+        return {"name": name, "sub": sub,
                 "start": tuple(ed["start"]), "target": tuple(ed["target"]),
                 "par": par, "max_burns": burns,
                 "planets": planets,
                 "cores": [tuple(c) for c in ed["cores"]],
-                "wormholes": [tuple(w) for w in ed["wormholes"]]}
+                "wormholes": [tuple(w) for w in ed["wormholes"]],
+                "barriers": [[[q[0], q[1]] for q in poly]
+                             for poly in ed["barriers"]]}
 
     def editor_playtest(self):
         lv = self._editor_level(" (playtest)")
-        self.session_levels.append(lv)
+        if self._playtest_pos is not None \
+                and self._playtest_pos < len(self.session_levels):
+            # reusing the one playtest slot: playtesting again
+            # replaces the temp level instead of stacking another
+            self.session_levels[self._playtest_pos] = lv
+            idx = len(LEVELS) + len(self.save["custom"]) \
+                + self._playtest_pos
+        else:
+            self.session_levels.append(lv)
+            self._playtest_pos = len(self.session_levels) - 1
+            idx = len(self.all_levels()) - 1
         self.mode = "play"
         self.ed_bar.pack_forget()
+        self.ed_sub_row.pack_forget()
         self.ed_hint.pack_forget()
-        self.load_level(len(self.all_levels()) - 1)
+        self.canvas.focus_set()
+        self.load_level(idx)
         self._fit_window()
 
     def editor_save(self):
         lv = self._editor_level()
-        self.save["custom"].append(lv)
-        self.store_save()
+        idx = self.editor.get("custom_idx")
+        if idx is not None and 0 <= idx < len(self.save["custom"]):
+            # editing a saved custom: update it in place, keeping
+            # its stars / cores / ghost records at that index
+            self.save["custom"][idx] = lv
+            self.store_save()
+            saved_idx = len(LEVELS) + idx
+            saved_msg = f"Updated '{lv['name']}'."
+        else:
+            self.save["custom"].append(lv)
+            self._clear_records_at(
+                len(LEVELS) + len(self.save["custom"]) - 1)
+            self.store_save()
+            saved_idx = len(LEVELS) + len(self.save["custom"]) - 1
+            saved_msg = (f"Saved '{lv['name']}' - it now lives after "
+                         "the campaign in the pager.")
         self.mode = "play"
         self.ed_bar.pack_forget()
+        self.ed_sub_row.pack_forget()
         self.ed_hint.pack_forget()
-        idx = len(LEVELS) + len(self.save["custom"]) - 1
-        self.load_level(idx)
-        self.message = (f"Saved '{lv['name']}' - it now lives after the "
-                        "campaign in the pager.")
+        self.canvas.focus_set()
+        self.load_level(saved_idx)
+        self.message = saved_msg
         self.sync_ui()
         self._fit_window()
+        # the work is saved now, so the editor starts fresh from the
+        # saved level next time it opens (and a stale playtest temp
+        # from this edit goes away with it)
+        self.editor = None
+        if self._playtest_pos is not None \
+                and self._playtest_pos < len(self.session_levels):
+            del self.session_levels[self._playtest_pos]
+        self._playtest_pos = None
 
     def share_level(self):
         """Turn the open level (or the editor's work-in-progress) into
@@ -2151,6 +2964,83 @@ class OrbitalGame:
         if self.mode != "editor":
             self.sync_ui()
 
+    def _record_recent(self, code):
+        """Remember a level code, newest first (max 8, no duplicates).
+        Called on every successful paste / file import."""
+        code = "".join(str(code).split())
+        if not code:
+            return
+        recents = [c for c in self.save.get("recent_codes", [])
+                   if c != code]
+        self.save["recent_codes"] = [code] + recents[:7]
+
+    def _clear_records_at(self, idx):
+        """A brand-new level has no best yet: drop any records at its
+        index, which can only be leftovers from a session level that
+        used to sit there."""
+        key = str(idx)
+        for field in ("stars", "cores", "flybys", "ghost"):
+            self.save[field].pop(key, None)
+
+    def _import_code(self, code_text):
+        """Decode a share code and save it as a custom level.
+        Returns (level, None) on success, (None, error) on failure."""
+        try:
+            lv = code_to_level(code_text)
+        except ValueError as exc:
+            return None, str(exc)
+        self.save["custom"].append(lv)
+        self._clear_records_at(len(LEVELS) + len(self.save["custom"]) - 1)
+        self._record_recent(code_text)
+        self.store_save()
+        return lv, None
+
+    def _import_file(self, text):
+        """Import a level from file contents: an ORBITAL1: code, or a
+        raw JSON level dict (re-encoded as a code first, so it goes
+        through the same validation). Returns (level, None) or
+        (None, error)."""
+        s = "".join(str(text).split())
+        if s.startswith(LEVEL_CODE_PREFIX):
+            return self._import_code(s)
+        try:
+            data = json.loads(text)
+        except Exception:
+            return None, ("That file doesn't contain an Orbital level "
+                          "code or level data.")
+        if not isinstance(data, dict):
+            return None, "That file doesn't contain a level."
+        raw = json.dumps(data, separators=(",", ":"),
+                         sort_keys=True).encode("utf-8")
+        code = LEVEL_CODE_PREFIX + base64.urlsafe_b64encode(
+            zlib.compress(raw, 9)).decode("ascii")
+        return self._import_code(code)
+
+    def _delete_custom(self, idx):
+        """Delete the custom level at global index idx. Records keyed
+        by level index shift down so they stay with their level, and
+        the open level moves to a sensible neighbour if it was the
+        one deleted or one after it."""
+        start = len(LEVELS)
+        del self.save["custom"][idx - start]
+        for field in ("stars", "cores", "flybys", "ghost"):
+            shifted = {}
+            for k, v in self.save[field].items():
+                ki = int(k)
+                if ki < idx:
+                    shifted[k] = v
+                elif ki > idx:
+                    shifted[str(ki - 1)] = v
+            self.save[field] = shifted
+        self.store_save()
+        if self.mode != "editor" and self.level_i >= idx:
+            if self.level_i > idx:
+                # the open level slid down one slot with the deletion
+                self.load_level(self.level_i - 1)
+            else:
+                # the open level was the deleted one: show its neighbour
+                self.load_level(min(idx, len(self.all_levels()) - 1))
+
     def paste_level_dialog(self):
         """Ask for a share code and import it as a saved custom level."""
         if self.mode == "editor":
@@ -2174,20 +3064,45 @@ class OrbitalGame:
                           text="")
         status.pack(padx=14)
 
-        def do_import():
-            try:
-                lv = code_to_level(txt.get("1.0", "end"))
-            except ValueError as exc:
-                status.config(text=str(exc))
+        recents = list(self.save.get("recent_codes", []))
+
+        def do_import(code_text=None):
+            if code_text is None:
+                code_text = txt.get("1.0", "end")
+            lv, err = self._import_code(code_text)
+            if err:
+                status.config(text=err)
                 return
-            self.save["custom"].append(lv)
-            self.store_save()
             win.destroy()
             idx = len(LEVELS) + len(self.save["custom"]) - 1
             self.load_level(idx)
             self.message = (f"Imported '{lv['name']}' - it now lives "
                             "after the campaign in the pager.")
             self.sync_ui()
+
+        if recents:
+            tk.Label(win, bg="#0b1020", fg=COLORS["dim"],
+                     font=("Consolas", self.FS(10)),
+                     text="Recent codes (double-click to import):"
+                     ).pack(padx=14, anchor="w")
+            recent_lb = tk.Listbox(win, width=62, height=min(4,
+                                                             len(recents)),
+                                   bg="#16213c", fg=COLORS["text"],
+                                   selectbackground="#2a4a7a",
+                                   relief="flat",
+                                   font=("Consolas", self.FS(9)),
+                                   takefocus=0)
+            for code in recents:
+                recent_lb.insert("end", code[:48] + ("..." if len(code) > 48
+                                                     else ""))
+            recent_lb.pack(padx=14, pady=(2, 4))
+
+            def import_recent(_event):
+                sel = recent_lb.curselection()
+                if sel:
+                    do_import(recents[sel[0]])
+
+            recent_lb.bind("<Double-Button-1>", import_recent)
 
         row = tk.Frame(win, bg="#0b1020")
         row.pack(pady=(2, 12))
@@ -2200,6 +3115,206 @@ class OrbitalGame:
                   relief="flat", padx=12, pady=4,
                   takefocus=0).pack(side="left", padx=4)
         txt.focus_set()
+
+    def my_levels_dialog(self):
+        """Manage saved custom levels: play, edit, share, rename or
+        delete one, or save one to / load one from a file."""
+        if self.mode == "editor":
+            self.message = "Exit the editor first to manage your levels."
+            return
+        win = tk.Toplevel(self.root)
+        win.title("My levels")
+        win.resizable(False, False)
+        win.configure(bg="#0b1020")
+        tk.Label(win, bg="#0b1020", fg=COLORS["text"],
+                 font=("Consolas", self.FS(11), "bold"),
+                 text="My levels").pack(padx=14, pady=(12, 2))
+        body = tk.Frame(win, bg="#0b1020")
+        body.pack(padx=14)
+        lb = tk.Listbox(body, width=56, height=8, bg="#16213c",
+                        fg=COLORS["text"], selectbackground="#2a4a7a",
+                        relief="flat", font=("Consolas", self.FS(10)),
+                        takefocus=0)
+        lb.pack(side="left")
+        scroll = tk.Scrollbar(body, command=lb.yview)
+        scroll.pack(side="left", fill="y")
+        lb.config(yscrollcommand=scroll.set)
+        empty = tk.Label(win, bg="#0b1020", fg=COLORS["dim"],
+                         font=("Consolas", self.FS(10)),
+                         text="No saved levels yet - build one in the "
+                              "editor.")
+
+        def refresh():
+            lb.delete(0, "end")
+            for i, lv in enumerate(self.save["custom"]):
+                gi = len(LEVELS) + i
+                stars = self.save["stars"].get(str(gi), 0)
+                got = int(self.save["cores"].get(str(gi), 0))
+                total = len(lv.get("cores", []))
+                lb.insert("end",
+                          f"{lv['name']}  -  {stars}*  {got}/{total} cores")
+            if self.save["custom"]:
+                empty.pack_forget()
+            else:
+                empty.pack(padx=14, pady=4)
+
+        refresh()
+
+        def selected():
+            sel = lb.curselection()
+            return sel[0] if sel else None
+
+        def go_play():
+            i = selected()
+            if i is None:
+                return
+            win.destroy()
+            self.load_level(len(LEVELS) + i)
+            self.sync_ui()
+
+        def go_edit():
+            i = selected()
+            if i is None:
+                return
+            win.destroy()
+            self.load_level(len(LEVELS) + i)
+            self.enter_editor()
+
+        def go_share():
+            i = selected()
+            if i is None:
+                return
+            win.destroy()
+            self.load_level(len(LEVELS) + i)
+            self.share_level()
+
+        def go_rename():
+            i = selected()
+            if i is None:
+                return
+            lv = self.save["custom"][i]
+            dlg = tk.Toplevel(win)
+            dlg.title("Rename level")
+            dlg.resizable(False, False)
+            dlg.configure(bg="#0b1020")
+            tk.Label(dlg, bg="#0b1020", fg=COLORS["text"],
+                     font=("Consolas", self.FS(11), "bold"),
+                     text="Rename level").pack(padx=14, pady=(12, 2))
+            entry = tk.Entry(dlg, width=32, bg="#16213c",
+                             fg=COLORS["text"],
+                             insertbackground="#dbe7ff", relief="flat",
+                             font=("Consolas", self.FS(10)))
+            entry.insert(0, lv["name"])
+            entry.pack(padx=14, pady=8)
+            entry.select_range(0, "end")
+            entry.focus_set()
+            dlg.grab_set()
+
+            def do_rename(_event=None):
+                name = entry.get().strip()[:60]
+                if name:
+                    lv["name"] = name
+                    self.store_save()
+                    refresh()
+                    self.sync_ui()
+                dlg.destroy()
+
+            entry.bind("<Return>", do_rename)
+            btns = tk.Frame(dlg, bg="#0b1020")
+            btns.pack(pady=(0, 12))
+            tk.Button(btns, text="Rename", command=do_rename, bg="#16213c",
+                      fg=COLORS["text"], activebackground="#22335c",
+                      relief="flat", padx=12, pady=4,
+                      takefocus=0).pack(side="left", padx=4)
+            tk.Button(btns, text="Cancel", command=dlg.destroy,
+                      bg="#16213c", fg=COLORS["text"],
+                      activebackground="#22335c", relief="flat", padx=12,
+                      pady=4, takefocus=0).pack(side="left", padx=4)
+
+        def go_delete():
+            i = selected()
+            if i is None:
+                return
+            lv = self.save["custom"][i]
+            if not messagebox.askyesno(
+                    "Delete saved level",
+                    f"Delete '{lv['name']}'?\n\nThis cannot be undone."):
+                return
+            self._delete_custom(len(LEVELS) + i)
+            refresh()
+            self.sync_ui()
+
+        def go_save_file():
+            i = selected()
+            if i is None:
+                return
+            lv = self.save["custom"][i]
+            safe = "".join(ch if ch.isalnum() or ch in " -_"
+                           else "_" for ch in lv["name"]).strip() or "level"
+            path = filedialog.asksaveasfilename(
+                defaultextension=".orbital",
+                filetypes=[("Orbital level", "*.orbital"),
+                           ("All files", "*.*")],
+                initialfile=f"{safe}.orbital")
+            if not path:
+                return
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(level_to_code(lv))
+            except OSError as exc:
+                messagebox.showerror("Save level",
+                                     f"Could not save the file:\n{exc}")
+                return
+            self.message = (f"Saved '{lv['name']}' to "
+                            f"{os.path.basename(path)}.")
+            self.sync_ui()
+
+        def go_load_file():
+            path = filedialog.askopenfilename(
+                filetypes=[("Orbital level", "*.orbital"),
+                           ("JSON", "*.json"),
+                           ("All files", "*.*")])
+            if not path:
+                return
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    text = fh.read()
+            except OSError as exc:
+                messagebox.showerror("Load level",
+                                     f"Could not read the file:\n{exc}")
+                return
+            lv, err = self._import_file(text)
+            if err:
+                messagebox.showerror("Load level", err)
+                return
+            refresh()
+            self.message = (f"Imported '{lv['name']}' - it now lives "
+                            "after the campaign in the pager.")
+            self.sync_ui()
+
+        row = tk.Frame(win, bg="#0b1020")
+        row.pack(pady=(6, 2))
+        for text, cmd in (("Play", go_play), ("Edit", go_edit),
+                          ("Share", go_share), ("Rename", go_rename),
+                          ("Delete", go_delete)):
+            tk.Button(row, text=text, command=cmd, bg="#16213c",
+                      fg=COLORS["text"], activebackground="#22335c",
+                      relief="flat", padx=12, pady=4,
+                      takefocus=0).pack(side="left", padx=4)
+        row2 = tk.Frame(win, bg="#0b1020")
+        row2.pack(pady=(2, 12))
+        tk.Button(row2, text="Save to file", command=go_save_file,
+                  bg="#16213c", fg=COLORS["text"],
+                  activebackground="#22335c", relief="flat", padx=12,
+                  pady=4, takefocus=0).pack(side="left", padx=4)
+        tk.Button(row2, text="Load from file", command=go_load_file,
+                  bg="#16213c", fg=COLORS["text"],
+                  activebackground="#22335c", relief="flat", padx=12,
+                  pady=4, takefocus=0).pack(side="left", padx=4)
+        tk.Button(row2, text="Close", command=win.destroy, bg="#16213c",
+                  fg=COLORS["text"], activebackground="#22335c",
+                  relief="flat", padx=12, pady=4,
+                  takefocus=0).pack(side="left", padx=4)
 
     def clear_ghost(self):
         """Remove the saved best-run ghost line for the open level.
@@ -2236,30 +3351,71 @@ class OrbitalGame:
                 f"Delete '{name}'?\n\nThis cannot be undone."):
             return
         gone = self.level_i
-        del self.save["custom"][gone - start]
-        for field in ("stars", "cores", "flybys", "ghost"):
-            shifted = {}
-            for k, v in self.save[field].items():
-                ki = int(k)
-                if ki < gone:
-                    shifted[k] = v
-                elif ki > gone:
-                    shifted[str(ki - 1)] = v
-            self.save[field] = shifted
-        self.store_save()
-        self.load_level(min(gone, len(self.all_levels()) - 1))
+        self._delete_custom(gone)
         self.message = f"Deleted '{name}'."
         self.sync_ui()
 
     def editor_clear(self):
-        self.editor = {
+        self.editor = self._fresh_editor({
+            "start": (80, 300), "target": (880, 300),
             "planets": [{"x": 480, "y": 300, "r": 30,
                          "color": PLANET_COLORS[0], "label": "P1"}],
-            "start": [80, 300], "target": [880, 300],
-            "cores": [], "wormholes": [],
-            "drag": None, "sel": None, "worm_next": None,
-            "orbit_next": None, "path_next": None}
+            "cores": [], "wormholes": [], "barriers": []})
+        self._playtest_pos = None
+        # a blank level gets blank fields: leaving the old level's
+        # name / par / burns in place made Clear save under the
+        # old level's identity
+        self.ed_name.delete(0, "end")
+        self.ed_sub.delete(0, "end")
+        self.ed_par.delete(0, "end")
+        self.ed_par.insert(0, "2")
+        self.ed_burns.delete(0, "end")
+        self.ed_burns.insert(0, "4")
         self.ed_dirty = True
+
+    def rename_planet(self):
+        """Rename the selected planet (editor). The label is what the
+        play field shows under it, and it travels with the level
+        through save / playtest / share."""
+        ed = self.editor
+        if ed is None or ed["sel"] is None \
+                or ed["sel"] >= len(ed["planets"]):
+            return
+        p = ed["planets"][ed["sel"]]
+        win = tk.Toplevel(self.root)
+        win.title("Rename planet")
+        win.resizable(False, False)
+        win.configure(bg="#0b1020")
+        tk.Label(win, bg="#0b1020", fg=COLORS["text"],
+                 font=("Consolas", self.FS(11), "bold"),
+                 text="Rename planet").pack(padx=14, pady=(12, 2))
+        entry = tk.Entry(win, width=24, bg="#16213c", fg=COLORS["text"],
+                         insertbackground="#dbe7ff", relief="flat",
+                         font=("Consolas", self.FS(10)))
+        entry.insert(0, p["label"])
+        entry.pack(padx=14, pady=8)
+        entry.select_range(0, "end")
+        entry.focus_set()
+        win.grab_set()
+
+        def do_rename(_event=None):
+            name = entry.get().strip()[:18]
+            if name:
+                p["label"] = name
+                self.ed_dirty = True
+            win.destroy()
+
+        entry.bind("<Return>", do_rename)
+        btns = tk.Frame(win, bg="#0b1020")
+        btns.pack(pady=(0, 12))
+        tk.Button(btns, text="Rename", command=do_rename, bg="#16213c",
+                  fg=COLORS["text"], activebackground="#22335c",
+                  relief="flat", padx=12, pady=4,
+                  takefocus=0).pack(side="left", padx=4)
+        tk.Button(btns, text="Cancel", command=win.destroy, bg="#16213c",
+                  fg=COLORS["text"], activebackground="#22335c",
+                  relief="flat", padx=12, pady=4,
+                  takefocus=0).pack(side="left", padx=4)
 
     @staticmethod
     def _ed_sync_orbit_pos(p):
@@ -2297,25 +3453,35 @@ class OrbitalGame:
                     self.ed_dirty = True
                     return
             n = len(ed["planets"])
-            if n < 8:
+            if n < 24:
                 ed["planets"].append(
                     {"x": round(gx), "y": round(gy), "r": 26,
                      "color": PLANET_COLORS[n % len(PLANET_COLORS)],
                      "label": f"P{n + 1}"})
                 ed["sel"] = n
         elif tool == "start":
-            ed["start"] = [round(gx), round(gy)]
+            if not point_in_barriers(gx, gy, ed["barriers"]) \
+                    and not _ed_on_planet(ed, gx, gy):
+                ed["start"] = [round(gx), round(gy)]
         elif tool == "target":
-            ed["target"] = [round(gx), round(gy)]
+            if not point_in_barriers(gx, gy, ed["barriers"]) \
+                    and not _ed_on_planet(ed, gx, gy):
+                ed["target"] = [round(gx), round(gy)]
         elif tool == "core":
-            if len(ed["cores"]) < 6:
+            if len(ed["cores"]) < 24:
                 ed["cores"].append([round(gx), round(gy)])
         elif tool == "wormhole":
             if ed["worm_next"] is None:
                 ed["worm_next"] = [round(gx), round(gy)]
-            elif len(ed["wormholes"]) < 3:
+            elif len(ed["wormholes"]) < 8:
                 ed["wormholes"].append(ed["worm_next"] + [round(gx),
                                                           round(gy)])
+                ed["worm_next"] = None
+            else:
+                # at the cap: the second mouth is refused, so the
+                # half-placed first mouth is dropped too - leaving
+                # it pending left the tool stuck, refusing every
+                # further click with no way to cancel it
                 ed["worm_next"] = None
         elif tool == "orbit":
             if ed["orbit_next"] is not None \
@@ -2373,7 +3539,7 @@ class OrbitalGame:
                         p["path"] = {"pts": [[p["x"], p["y"]]],
                                      "speed": 60.0, "phase": 0.0}
                         p.pop("orbit", None)   # one motion type each
-                    if len(p["path"]["pts"]) < 8:
+                    if len(p["path"]["pts"]) < 20:
                         p["path"]["pts"].append([round(gx), round(gy)])
                     self.ed_dirty = True
                     return
@@ -2399,6 +3565,41 @@ class OrbitalGame:
                     ed["path_next"] = hit
                 self.ed_dirty = True
                 return
+        elif tool == "barrier":
+            if shift:
+                # Shift+click lays down polygon corners, one per
+                # click; releasing Shift finishes the shape (see
+                # _on_shift_release). A barrier must be a real 2D
+                # shape - two points is a line, and lines are not
+                # allowed.
+                if ed["barrier_poly"] is None:
+                    ed["barrier_poly"] = []
+                ed["barrier_poly"].append([round(gx), round(gy)])
+                ed["barrier_rect"] = None
+                ed["barrier_cur"] = None
+                self.ed_dirty = True
+                return
+            # Plain click starts a rectangle drag (finished on
+            # release by ed_release).
+            ed["barrier_poly"] = None
+            ed["barrier_rect"] = [round(gx), round(gy)]
+            ed["barrier_cur"] = [round(gx), round(gy)]
+            self.ed_dirty = True
+            return
+        elif tool == "delbarrier":
+            if shift:
+                if ed["delbarrier_poly"] is None:
+                    ed["delbarrier_poly"] = []
+                ed["delbarrier_poly"].append([round(gx), round(gy)])
+                ed["delbarrier_rect"] = None
+                ed["delbarrier_cur"] = None
+                self.ed_dirty = True
+                return
+            ed["delbarrier_poly"] = None
+            ed["delbarrier_rect"] = [round(gx), round(gy)]
+            ed["delbarrier_cur"] = [round(gx), round(gy)]
+            self.ed_dirty = True
+            return
         elif tool == "erase":
             for i, p in enumerate(ed["planets"]):
                 if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
@@ -2422,9 +3623,113 @@ class OrbitalGame:
             ed["worm_next"] = None
         self.ed_dirty = True
 
+    def _ed_finish_barrier_poly(self, erase):
+        """Finish a pending barrier polygon (Shift released): the
+        shape is closed by joining the last point back to the
+        first, and kept only if it is a real 2D shape."""
+        ed = self.editor
+        if ed is None:
+            return
+        key = "delbarrier_poly" if erase else "barrier_poly"
+        pts = ed[key]
+        ed[key] = None
+        if pts is None:
+            return
+        pts = clean_poly(pts)
+        if len(pts) < 3 or abs(polygon_area(pts)) < BARRIER_MIN_AREA:
+            return   # two points is a line, and a line is no barrier
+        if not polygon_is_simple(pts):
+            return   # a bowtie is not a real shape
+        if erase:
+            ed["barriers"] = erase_from_barriers(ed["barriers"], pts)
+        else:
+            if len(ed["barriers"]) >= BARRIER_MAX:
+                return
+            if point_in_polygon(ed["start"][0], ed["start"][1], pts) or \
+                    point_in_polygon(ed["target"][0], ed["target"][1], pts):
+                return   # a barrier on the pad or dock breaks the level
+            ed["barriers"].append(pts)
+        self.ed_dirty = True
+
+    def _ed_finish_barrier_rect(self, erase):
+        """Finish a rectangle drag (mouse released). A drag that is a
+        straight line - no width or no height - makes no barrier."""
+        ed = self.editor
+        if ed is None:
+            return
+        key = "delbarrier_rect" if erase else "barrier_rect"
+        curkey = "delbarrier_cur" if erase else "barrier_cur"
+        start = ed[key]
+        cur = ed[curkey]
+        ed[key] = None
+        ed[curkey] = None
+        if start is None or cur is None:
+            return
+        x0, y0 = start
+        x1, y1 = cur
+        if abs(x1 - x0) < 8 or abs(y1 - y0) < 8:
+            return
+        x0, x1 = min(x0, x1), max(x0, x1)
+        y0, y1 = min(y0, y1), max(y0, y1)
+        if erase:
+            ed["barriers"] = erase_from_barriers(ed["barriers"],
+                                                 (x0, y0, x1, y1))
+        else:
+            if len(ed["barriers"]) >= BARRIER_MAX:
+                return
+            pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
+            if point_in_polygon(ed["start"][0], ed["start"][1], pts) or \
+                    point_in_polygon(ed["target"][0], ed["target"][1], pts):
+                return   # a barrier on the pad or dock breaks the level
+            ed["barriers"].append(pts)
+        self.ed_dirty = True
+
+    def _on_shift_release(self, _event):
+        """Releasing Shift finishes a pending barrier polygon: the
+        shape is closed by joining the last point back to the
+        first."""
+        if self.mode != "editor" or self.editor is None:
+            return
+        w = self.root.focus_get()
+        if isinstance(w, (tk.Entry, tk.Text)):
+            return
+        tool = self.ed_tool.get()
+        if tool == "barrier" and self.editor["barrier_poly"]:
+            self._ed_finish_barrier_poly(erase=False)
+        elif tool == "delbarrier" and self.editor["delbarrier_poly"]:
+            self._ed_finish_barrier_poly(erase=True)
+
+    def _ed_tool_changed(self, *_args):
+        """Switching tools drops any half-drawn barrier (a rectangle
+        drag or a polygon in progress) - it belongs to the old tool -
+        and any half-placed wormhole mouth."""
+        ed = self.editor
+        if ed is None:
+            return
+        ed["worm_next"] = None
+        ed["barrier_poly"] = None
+        ed["barrier_rect"] = None
+        ed["barrier_cur"] = None
+        ed["delbarrier_poly"] = None
+        ed["delbarrier_rect"] = None
+        ed["delbarrier_cur"] = None
+        self.ed_dirty = True
+
     def ed_drag(self, gx, gy):
         ed = self.editor
-        if ed is None or ed["drag"] is None:
+        if ed is None:
+            return
+        if ed["barrier_rect"] is not None:
+            ed["barrier_cur"] = [round(max(10.0, min(WIDTH - 10.0, gx))),
+                                 round(max(10.0, min(HEIGHT - 10.0, gy)))]
+            self.ed_dirty = True
+            return
+        if ed["delbarrier_rect"] is not None:
+            ed["delbarrier_cur"] = [round(max(10.0, min(WIDTH - 10.0, gx))),
+                                    round(max(10.0, min(HEIGHT - 10.0, gy)))]
+            self.ed_dirty = True
+            return
+        if ed["drag"] is None:
             return
         p = ed["planets"][ed["drag"]]
         gx = max(30.0, min(WIDTH - 30.0, gx))
@@ -2452,8 +3757,13 @@ class OrbitalGame:
         self.ed_dirty = True
 
     def ed_release(self, _x, _y):
-        if self.editor is not None:
-            self.editor["drag"] = None
+        if self.editor is None:
+            return
+        self.editor["drag"] = None
+        if self.editor["barrier_rect"] is not None:
+            self._ed_finish_barrier_rect(erase=False)
+        elif self.editor["delbarrier_rect"] is not None:
+            self._ed_finish_barrier_rect(erase=True)
 
     def ed_wheel(self, gx, gy, direction, shift=False):
         ed = self.editor
@@ -2499,6 +3809,10 @@ class OrbitalGame:
         ed = self.editor
         if ed is None:
             return
+        sel_planet = ed["sel"] is not None \
+            and ed["sel"] < len(ed["planets"])
+        self.ed_rename_btn.config(
+            state="normal" if sel_planet else "disabled")
         c = self.canvas
         X = self.X
         c.delete("all")
@@ -2511,6 +3825,30 @@ class OrbitalGame:
                               X(wy + 20), outline=COLORS["warp"], width=2)
                 c.create_oval(X(wx - 4), X(wy - 4), X(wx + 4), X(wy + 4),
                               fill=COLORS["warp"], outline="")
+        for pts in ed["barriers"]:
+            c.create_polygon(*[X(v) for q in pts for v in q],
+                             fill=BARRIER_FILL, outline="")
+        # in-progress barrier rectangle / polygon (dashed, red for a
+        # wall, orange for the cutter)
+        for rkey, ckey, pkey, col in (
+                ("barrier_rect", "barrier_cur", "barrier_poly",
+                 COLORS["danger"]),
+                ("delbarrier_rect", "delbarrier_cur", "delbarrier_poly",
+                 "#ff9a3c")):
+            if ed[rkey] is not None and ed[ckey] is not None:
+                x0, y0 = ed[rkey]
+                x1, y1 = ed[ckey]
+                c.create_rectangle(X(min(x0, x1)), X(min(y0, y1)),
+                                   X(max(x0, x1)), X(max(y0, y1)),
+                                   outline=col, width=2, dash=(4, 3))
+            poly = ed[pkey]
+            if poly:
+                if len(poly) >= 2:
+                    c.create_line(*[X(v) for q in poly for v in q],
+                                  fill=col, width=2, dash=(4, 3))
+                for (qx, qy) in poly:
+                    c.create_oval(X(qx - 3), X(qy - 3), X(qx + 3),
+                                  X(qy + 3), outline=col, width=1)
         if ed["worm_next"]:
             wx, wy = ed["worm_next"]
             c.create_oval(X(wx - 20), X(wy - 20), X(wx + 20), X(wy + 20),
@@ -2606,7 +3944,7 @@ class OrbitalGame:
 # it is always beatable.
 # ----------------------------------------------------------------------
 def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0,
-                  wormholes=()):
+                  wormholes=(), barriers=()):
     """Simulate one launch exactly the way the game flies it: planets
     are snapshotted at the flight time of each step (so orbiting and
     patrolling planets move), and wormholes teleport with the game's
@@ -2617,20 +3955,23 @@ def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0,
     pts = [(x, y)]
     got = [False] * len(cores)
     cd = 0.0
+    last_pair = -1
     for i in range(int(seconds / PHYS_DT)):
         if moving:
             planets = planet_snapshot(specs, (i + 1) * PHYS_DT)
         x, y, vx, vy = step_physics(x, y, vx, vy, planets, PHYS_DT)
         cd = max(0.0, cd - PHYS_DT)
-        if cd <= 0.0 and wormholes:
-            x, y, warped = wormhole_step(x, y, wormholes)
+        if wormholes:
+            x, y, warped, k = wormhole_step(
+                x, y, wormholes, skip=last_pair if cd > 0.0 else -1)
             if warped:
                 cd = WORMHOLE_COOLDOWN
+                last_pair = k
         pts.append((x, y))
         for i, (cx, cy) in enumerate(cores):
             if not got[i] and (x - cx) ** 2 + (y - cy) ** 2 <= CORE_RADIUS ** 2:
                 got[i] = True
-        outcome = check_hit(x, y, planets, target)
+        outcome = check_hit(x, y, planets, target, barriers)
         if outcome:
             return outcome, pts, got
         if x < -350 or x > WIDTH + 350 or y < -350 or y > HEIGHT + 350:
