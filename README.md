@@ -61,9 +61,12 @@ run per mission, your custom levels, and your settings.)
   you want it gone. The header tracks your campaign totals (stars and
   cores across all 35 missions).
 - **Random** builds a fresh mission on the spot: the generator flies a
-  design line first and places the station and cores on the path it
-  actually flew, then re-verifies the finished mission before showing
-  it, so it is always beatable.
+  design line first, places the station on the path it actually flew,
+  and scatters the cores off that path — collecting them all takes a
+  deliberate detour. Missions roll 2 to 5 planets and 2 to 5 cores,
+  and a planet can be a repulsor, orbit, or patrol a path (sometimes
+  a loop); some missions add a wormhole pair. The finished mission is
+  verified beatable before it is shown.
 - **Editor** lets you build your own missions: place planets (drag to
   move, mouse wheel to resize), start pad, dock, cores and wormholes,
   set par and burns, then playtest or save them — saved levels live in

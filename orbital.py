@@ -45,6 +45,7 @@ import os
 import random
 import sys
 import threading
+import time
 import zlib
 import tkinter as tk
 import tkinter.font as tkfont
@@ -2597,17 +2598,34 @@ class OrbitalGame:
 
 # ----------------------------------------------------------------------
 # RANDOM MISSION GENERATOR - build by construction: fly a design line
-# first, then put the station and the cores on the path it actually
-# flew. The finished mission is re-flown with the game's own rules
-# before it is handed over, so it is always beatable.
+# first and put the station on the path it actually flew, then put
+# the cores on a second, differently-arced line that also docks -
+# collecting them takes that detour instead of riding the one obvious
+# line. A level is handed over only
+# once a single launch is verified to dock and collect every core, so
+# it is always beatable.
 # ----------------------------------------------------------------------
-def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0):
+def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0,
+                  wormholes=()):
+    """Simulate one launch exactly the way the game flies it: planets
+    are snapshotted at the flight time of each step (so orbiting and
+    patrolling planets move), and wormholes teleport with the game's
+    cooldown. Static levels keep the cheap single snapshot."""
     x, y = float(start[0]), float(start[1])
+    moving = any(sp.get("orbit") or sp.get("path") for sp in specs)
     planets = planet_snapshot(specs, 0.0)
     pts = [(x, y)]
     got = [False] * len(cores)
-    for _ in range(int(seconds / PHYS_DT)):
+    cd = 0.0
+    for i in range(int(seconds / PHYS_DT)):
+        if moving:
+            planets = planet_snapshot(specs, (i + 1) * PHYS_DT)
         x, y, vx, vy = step_physics(x, y, vx, vy, planets, PHYS_DT)
+        cd = max(0.0, cd - PHYS_DT)
+        if cd <= 0.0 and wormholes:
+            x, y, warped = wormhole_step(x, y, wormholes)
+            if warped:
+                cd = WORMHOLE_COOLDOWN
         pts.append((x, y))
         for i, (cx, cy) in enumerate(cores):
             if not got[i] and (x - cx) ** 2 + (y - cy) ** 2 <= CORE_RADIUS ** 2:
@@ -2615,24 +2633,190 @@ def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0):
         outcome = check_hit(x, y, planets, target)
         if outcome:
             return outcome, pts, got
+        if x < -350 or x > WIDTH + 350 or y < -350 or y > HEIGHT + 350:
+            # Far outside the field the planets' pull is negligible,
+            # so the probe is effectively ballistic and will not come
+            # back in time - stop burning steps on a lost flight.
+            return "timeout", pts, got
     return "timeout", pts, got
+
+
+def _cores_on_detour(pts_b, planets, start, station, pts_a, fracs):
+    """Place the cores on a second flight path (line B) that also
+    docks but arcs differently from the design line A: the cores sit
+    on B's route, off A's, so the obvious line leaves them behind and
+    collecting them takes the detour. Returns None when the placement
+    breaks a fairness rule (inside a planet's crash zone, on the
+    start or station, on the straight start->station axis, back on
+    line A's route, nearly in a line themselves, or outside the
+    field where nobody could see them)."""
+    cores = []
+    total = len(pts_b)
+    for frac in fracs:
+        cx, cy = pts_b[int(total * frac)]
+        cores.append((round(cx), round(cy)))
+    ax, ay = station[0] - start[0], station[1] - start[1]
+    alen = math.hypot(ax, ay) or 1.0
+    for (x, y) in cores:
+        if not (34 <= x <= WIDTH - 34 and 34 <= y <= HEIGHT - 34):
+            return None
+        if any(math.hypot(x - px, y - py) < r + 26
+               for (px, py, r) in planets):
+            return None
+        if math.hypot(x - start[0], y - start[1]) < 60:
+            return None
+        if math.hypot(x - station[0], y - station[1]) < 46:
+            return None
+        if abs((x - start[0]) * ay - (y - start[1]) * ax) / alen < 30:
+            return None
+        if min(math.hypot(x - qx, y - qy) for (qx, qy) in pts_a[::4]) < 26:
+            return None
+    for a in range(len(cores)):
+        for b in range(a + 1, len(cores)):
+            if math.hypot(cores[a][0] - cores[b][0],
+                          cores[a][1] - cores[b][1]) < 55:
+                return None
+    if len(cores) >= 3:
+        (x1, y1) = cores[0]
+        (x2, y2) = cores[len(cores) // 2]
+        (x3, y3) = cores[-1]
+        if abs(x1 * (y2 - y3) + x2 * (y3 - y1)
+               + x3 * (y1 - y2)) / 2 < 900:
+            return None
+    return cores
+
+
+def _seg_point_dist(ax, ay, bx, by, px, py):
+    """Distance from point P to segment AB."""
+    dx, dy = bx - ax, by - ay
+    ll = dx * dx + dy * dy
+    if ll <= 0:
+        return math.hypot(px - ax, py - ay)
+    f = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / ll))
+    return math.hypot(px - (ax + dx * f), py - (ay + dy * f))
+
+
+def _add_motion(rng, specs, planets, idx, start):
+    """Give one planet of a random level an orbit or a patrol path.
+    Returns False (leaving it static) when neither fits cleanly: the
+    swept disc / route must stay in the field, off the launch pad,
+    and clear of the other planets."""
+    sp = specs[idx]
+    px, py, r = planets[idx]
+    others = [(qx, qy, qr)
+              for j, (qx, qy, qr) in enumerate(planets) if j != idx]
+    if rng.random() < 0.50:
+        max_r = min(px - r - 12, WIDTH - r - 12 - px,
+                    py - r - 12, HEIGHT - r - 12 - py,
+                    math.hypot(px - start[0], py - start[1]) - r - 70)
+        for (qx, qy, qr) in others:
+            max_r = min(max_r,
+                        math.hypot(px - qx, py - qy) - r - qr - 10)
+        if max_r < 42:
+            return False
+        radius = rng.uniform(42, min(115.0, max_r))
+        speed = rng.uniform(0.25, 0.6) * rng.choice([-1, 1])
+        phase = rng.uniform(0, math.tau)
+        sp["orbit"] = {"cx": round(px), "cy": round(py),
+                       "radius": round(radius, 1),
+                       "speed": round(speed, 3),
+                       "phase": round(phase, 3)}
+        sp["x"] = round(px + math.cos(phase) * radius)
+        sp["y"] = round(py + math.sin(phase) * radius)
+        return True
+    pts = [[round(px), round(py)]]
+    for _ in range(rng.choice([1, 2, 2, 3])):
+        placed = False
+        for _try in range(30):
+            wx = min(max(px + rng.uniform(-260, 260), 40), WIDTH - 40)
+            wy = min(max(py + rng.uniform(-260, 260), 40), HEIGHT - 40)
+            lx, ly = pts[-1]
+            if math.hypot(wx - lx, wy - ly) < 110:
+                continue
+            if any(math.hypot(wx - qx, wy - qy) < qr + r + 8
+                   for (qx, qy, qr) in others):
+                continue
+            if any(_seg_point_dist(lx, ly, wx, wy, qx, qy) < qr + r + 6
+                   for (qx, qy, qr) in others):
+                continue
+            if _seg_point_dist(lx, ly, wx, wy,
+                               start[0], start[1]) < r + 30:
+                continue
+            pts.append([round(wx), round(wy)])
+            placed = True
+            break
+        if not placed:
+            break
+    if len(pts) < 2:
+        return False
+    path = {"pts": pts, "speed": round(rng.uniform(40, 85), 1),
+            "phase": round(rng.random(), 3)}
+    if len(pts) >= 3 and rng.random() < 0.3:
+        path["loop"] = True
+    sp["path"] = path
+    return True
+
+
+def _random_features(rng, specs, planets, start):
+    """Roll a random level's twists: repulsors, one moving planet
+    (orbit or path), and maybe a wormhole pair. Mutates the specs and
+    returns the wormhole list. Most levels stay classic, and anything
+    that cannot be placed cleanly is skipped."""
+    n_repel = 0
+    for sp in specs:
+        if n_repel < 2 and rng.random() < 0.15:
+            sp["repel"] = True
+            n_repel += 1
+    if rng.random() < 0.38:
+        order = list(range(len(specs)))
+        rng.shuffle(order)
+        for idx in order:
+            if _add_motion(rng, specs, planets, idx, start):
+                break
+    wormholes = []
+    if rng.random() < 0.30:
+        for _try in range(40):
+            ax, ay = (rng.uniform(60, WIDTH - 60),
+                      rng.uniform(60, HEIGHT - 60))
+            bx, by = (rng.uniform(60, WIDTH - 60),
+                      rng.uniform(60, HEIGHT - 60))
+            if math.hypot(bx - ax, by - ay) < 300:
+                continue
+            ok = True
+            for (mx, my) in ((ax, ay), (bx, by)):
+                if math.hypot(mx - start[0], my - start[1]) < 90:
+                    ok = False
+                if any(math.hypot(mx - px, my - py) < r + 34
+                       for (px, py, r) in planets):
+                    ok = False
+            if ok:
+                wormholes = [(round(ax), round(ay),
+                              round(bx), round(by))]
+                break
+    return wormholes
 
 
 def generate_random_level():
     seed = random.randrange(100000)
     rng = random.Random(seed)
+    budget = [900]
+    deadline = time.time() + 1.4   # the Random button must stay snappy:
+                                   # past the deadline, stop searching
+                                   # and settle for a simpler layout
     for _attempt in range(80):
-        n = rng.choice([1, 2, 2, 3])
+        if time.time() > deadline:
+            budget[0] = 0
+        n = rng.choice([2, 3, 3, 4, 4, 5])
         start = (rng.uniform(50, 110), rng.uniform(90, 510))
         planets = []
         tries = 0
-        while len(planets) < n and tries < 60:
+        while len(planets) < n and tries < 90:
             tries += 1
-            px, py = rng.uniform(200, 760), rng.uniform(100, 500)
+            px, py = rng.uniform(170, 800), rng.uniform(85, 515)
             r = rng.uniform(18, 38)
             if math.hypot(px - start[0], py - start[1]) < r + 130:
                 continue
-            if any(math.hypot(px - qx, py - qy) < r + qr + 80
+            if any(math.hypot(px - qx, py - qy) < r + qr + 70
                    for (qx, qy, qr) in planets):
                 continue
             planets.append((px, py, r))
@@ -2642,18 +2826,23 @@ def generate_random_level():
                   "color": PLANET_COLORS[i % len(PLANET_COLORS)],
                   "label": f"R{i + 1}"}
                  for i, (px, py, r) in enumerate(planets)]
+        wormholes = _random_features(rng, specs, planets, start)
         base = math.atan2(300 - start[1], 480 - start[0])
         ang = base + rng.uniform(-0.55, 0.55)
         power = rng.uniform(95, 205)
         vx, vy = math.cos(ang) * power, math.sin(ang) * power
         _outcome, pts, _got = _dense_flight(specs, start, vx, vy,
-                                            (-9999, -9999), seconds=12.0)
+                                            (-9999, -9999), seconds=12.0,
+                                            wormholes=wormholes)
         total = len(pts)
         if total < 300:
             continue
         cand = []
         for i in range(int(total * 0.45), total - 1, 6):
             px, py = pts[i]
+            if not (45 <= px <= WIDTH - 45 and 45 <= py <= HEIGHT - 45):
+                continue   # the design flight can leave the field; the
+                           # station must not - it would be invisible
             if all(math.hypot(px - qx, py - qy) > qr + 50
                    for (qx, qy, qr) in planets):
                 cand.append(i)
@@ -2661,25 +2850,79 @@ def generate_random_level():
             continue
         si = rng.choice(cand)
         station = pts[si]
-        cores = []
-        for frac in (0.3, 0.55, 0.8):
-            cx, cy = pts[int(si * frac)]
-            cores.append((round(cx), round(cy)))
-        outcome, _p, got = _dense_flight(specs, start, vx, vy, station,
-                                         cores=cores, seconds=12.0)
-        if outcome == "dock" and all(got):
-            return {"name": f"Random #{seed}",
-                    "sub": "A generated mission - verified beatable "
-                           "before it reached you.",
-                    "start": (round(start[0]), round(start[1])),
-                    "target": (round(station[0]), round(station[1])),
-                    "par": 1, "max_burns": 3,
-                    "planets": [(round(px), round(py), round(r),
-                                 int(GRAV_K * r * r),
-                                 PLANET_COLORS[i % len(PLANET_COLORS)],
-                                 f"R{i + 1}")
-                                for i, (px, py, r) in enumerate(planets)],
-                    "cores": cores}
+        n_cores = rng.choice([2, 3, 3, 4, 5])
+        fracs = [0.25 + 0.57 * i / (n_cores - 1) for i in range(n_cores)]
+        cores = None
+        a0 = math.atan2(vy, vx)
+        p0 = math.hypot(vx, vy)
+        for da_deg in (6, -6, 9, -9, 12, -12, 16, -16, 20, -20,
+                       25, -25, 30, -30):
+            if cores is not None or budget[0] <= 0:
+                break
+            for f in (1.0, 0.93, 1.07, 0.86, 1.15):
+                if budget[0] <= 0:
+                    break
+                budget[0] -= 1
+                ang_b = a0 + math.radians(da_deg)
+                pow_b = p0 * f
+                outcome_b, pts_b, _g = _dense_flight(
+                    specs, start, math.cos(ang_b) * pow_b,
+                    math.sin(ang_b) * pow_b, station, seconds=12.0,
+                    wormholes=wormholes)
+                if outcome_b != "dock":
+                    continue
+                placed = None
+                for shift in (0.0, -0.07, 0.07):
+                    fset = [min(max(fr + shift, 0.08), 0.92)
+                            for fr in fracs]
+                    placed = _cores_on_detour(pts_b, planets, start,
+                                              station, pts, fset)
+                    if placed is not None:
+                        break
+                if placed is None:
+                    continue
+                outcome_c, _p2, got_c = _dense_flight(
+                    specs, start, math.cos(ang_b) * pow_b,
+                    math.sin(ang_b) * pow_b, station, cores=placed,
+                    seconds=12.0, wormholes=wormholes)
+                if outcome_c == "dock" and all(got_c):
+                    cores = placed
+                    break
+        if cores is None:
+            if budget[0] > 150:
+                continue   # budget remains: try a fresh layout rather
+                           # than settle for cores lined up on the path
+            cores = []
+            in_bounds = True
+            for frac in fracs:
+                cx, cy = pts[int(si * frac)]
+                if not (34 <= cx <= WIDTH - 34
+                        and 34 <= cy <= HEIGHT - 34):
+                    in_bounds = False
+                cores.append((round(cx), round(cy)))
+            if not in_bounds:
+                if time.time() > deadline:
+                    break
+                continue
+            outcome, _p, got = _dense_flight(specs, start, vx, vy,
+                                             station, cores=cores,
+                                             seconds=12.0,
+                                             wormholes=wormholes)
+            if not (outcome == "dock" and all(got)):
+                if time.time() > deadline:
+                    break
+                continue
+        level = {"name": f"Random #{seed}",
+                 "sub": "A generated mission - verified beatable "
+                        "before it reached you.",
+                 "start": (round(start[0]), round(start[1])),
+                 "target": (round(station[0]), round(station[1])),
+                 "par": 1, "max_burns": 3,
+                 "planets": specs,
+                 "cores": cores}
+        if wormholes:
+            level["wormholes"] = wormholes
+        return level
     lv = dict(LEVELS[0])   # fallback: a renamed First Light
     lv["name"] = f"Random #{seed}"
     lv["sub"] = "A generated mission - verified beatable before it reached you."
