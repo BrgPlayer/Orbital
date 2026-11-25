@@ -2912,12 +2912,15 @@ def generate_random_level():
                 if time.time() > deadline:
                     break
                 continue
+        # Bigger fields earn more burns: 2-3 planets keep the classic
+        # 3 burns, then the budget matches the planet count.
+        max_burns = max(3, len(planets))
         level = {"name": f"Random #{seed}",
                  "sub": "A generated mission - verified beatable "
                         "before it reached you.",
                  "start": (round(start[0]), round(start[1])),
                  "target": (round(station[0]), round(station[1])),
-                 "par": 1, "max_burns": 3,
+                 "par": max_burns // 2, "max_burns": max_burns,
                  "planets": specs,
                  "cores": cores}
         if wormholes:
