@@ -67,7 +67,7 @@ CRASH_PAD = 3                    # crash if within planet radius + this
 LOST_MARGIN = 70                 # px beyond the field = lost
 FLIGHT_TIMEOUT = 25.0            # seconds; longer flights end the run
 GRAV_SOFT = 400.0                # gravity softening (mu / (d^2 + 400))
-GRAV_K = 300.0                   # gravity scales with size: mu = GRAV_K * radius^2
+GRAV_K = 450.0                   # gravity scales with size: mu = GRAV_K * radius^2
 TRAIL_MAX = 900
 WORMHOLE_RADIUS = 17             # teleport trigger distance, px
 WORMHOLE_COOLDOWN = 0.6          # seconds before another teleport
@@ -129,92 +129,92 @@ LEVELS = [
     {"name": "First Light",
      "sub": "Bend around the planet and dock - don't fly straight through it.",
      "start": (90, 300), "target": (870, 300), "par": 1, "max_burns": 3,
-     "planets": [(480, 300, 30, 270000, "#3a9ad9", "Kepler")],
+     "planets": [(480, 300, 30, 405000, "#3a9ad9", "Kepler")],
      "cores": [(480, 165), (665, 235)]},
     {"name": "Twin Pull",
      "sub": "Two planets tug in turn. Ride the S-curve from low-left to high-right.",
      "start": (90, 470), "target": (870, 130), "par": 2, "max_burns": 4,
-     "planets": [(335, 305, 24, 172800, "#e08a3c", "A"),
-                 (625, 295, 24, 172800, "#3a9ad9", "B")],
+     "planets": [(335, 305, 24, 259200, "#e08a3c", "A"),
+                 (625, 295, 24, 259200, "#3a9ad9", "B")],
      "cores": [(305, 406), (493, 297), (705, 195)]},
     {"name": "The Gate",
      "sub": "Thread between the twin planets. The gap is safe - the surfaces aren't.",
      "start": (80, 300), "target": (880, 300), "par": 1, "max_burns": 3,
-     "planets": [(480, 172, 26, 202800, "#c65b7a", "North"),
-                 (480, 428, 26, 202800, "#c65b7a", "South")],
-     "cores": [(480, 300), (250, 300), (710, 300)]},
+     "planets": [(480, 172, 26, 304200, "#c65b7a", "North"),
+                 (480, 428, 26, 304200, "#c65b7a", "South")],
+     "cores": [(233, 173), (460, 77), (700, 158)]},
     {"name": "Heavy Heart",
      "sub": "One massive world in the middle. Use its pull - or be swallowed by it.",
      "start": (90, 115), "target": (870, 485), "par": 2, "max_burns": 4,
-     "planets": [(480, 300, 44, 580800, "#7a6fd0", "Heavy")],
+     "planets": [(480, 300, 44, 871200, "#7a6fd0", "Heavy")],
      "cores": [(389, 138), (696, 286)]},
     {"name": "S-Curve",
      "sub": "Low planet, high planet. Two opposite bends in one flight.",
      "start": (80, 505), "target": (880, 95), "par": 2, "max_burns": 4,
-     "planets": [(320, 170, 26, 202800, "#2ec4a6", "Low"),
-                 (640, 430, 26, 202800, "#e08a3c", "High")],
-     "cores": [(298, 405), (496, 301), (710, 196)]},
+     "planets": [(320, 170, 26, 304200, "#2ec4a6", "Low"),
+                 (640, 430, 26, 304200, "#e08a3c", "High")],
+     "cores": [(151, 282), (360, 66), (627, 54)]},
     {"name": "The Well",
      "sub": "Drop from the top, swing between two wells, and climb out to the dock.",
      "start": (480, 65), "target": (480, 535), "par": 2, "max_burns": 5,
-     "planets": [(235, 300, 28, 235200, "#3a9ad9", "West"),
-                 (725, 300, 28, 235200, "#e08a3c", "East")],
-     "cores": [(480, 300), (480, 185)]},
+     "planets": [(235, 300, 28, 352800, "#3a9ad9", "West"),
+                 (725, 300, 28, 352800, "#e08a3c", "East")],
+     "cores": [(298, 163), (267, 409)]},
     {"name": "Crossfire",
      "sub": "Four planets, one corridor. Small burns beat big ones here.",
      "start": (75, 300), "target": (885, 300), "par": 3, "max_burns": 5,
-     "planets": [(300, 155, 22, 145200, "#c65b7a", "1"),
-                 (300, 445, 22, 145200, "#3a9ad9", "2"),
-                 (660, 155, 22, 145200, "#3a9ad9", "3"),
-                 (660, 445, 22, 145200, "#c65b7a", "4")],
+     "planets": [(300, 155, 22, 217800, "#c65b7a", "1"),
+                 (300, 445, 22, 217800, "#3a9ad9", "2"),
+                 (660, 155, 22, 217800, "#3a9ad9", "3"),
+                 (660, 445, 22, 217800, "#c65b7a", "4")],
      "cores": [(480, 300), (480, 150), (480, 450)]},
     {"name": "Homecoming",
      "sub": "The full run: three worlds in a row. Chain the slingshots and come home.",
      "start": (70, 300), "target": (890, 300), "par": 3, "max_burns": 5,
-     "planets": [(295, 300, 24, 172800, "#2ec4a6", "I"),
-                 (480, 205, 20, 120000, "#e08a3c", "II"),
-                 (665, 395, 24, 172800, "#3a9ad9", "III")],
+     "planets": [(295, 300, 24, 259200, "#2ec4a6", "I"),
+                 (480, 205, 20, 180000, "#e08a3c", "II"),
+                 (665, 395, 24, 259200, "#3a9ad9", "III")],
      "cores": [(385, 205), (575, 395), (780, 300)]},
     {"name": "The Loop", "sub": "Out, around the giant, and home again.",
      "start": (100, 130), "target": (100, 470),
      "par": 2, "max_burns": 4,
-     "planets": [(470, 300, 42, 529200, "#7a6fd0", "Loop")],
-     "cores": [(83, 223), (74, 303), (71, 391)]},
+     "planets": [(470, 300, 42, 793800, "#7a6fd0", "Loop")],
+     "cores": [(61, 209), (44, 294), (49, 379)]},
     {"name": "Thread the Needle", "sub": "A narrow gap of daylight. Fly it straight.",
      "start": (70, 300), "target": (890, 300),
      "par": 2, "max_burns": 4,
-     "planets": [(480, 242, 28, 235200, "#2ec4a6", "A"), (480, 358, 28, 235200, "#3a9ad9", "B")],
-     "cores": [(301, 300), (546, 300), (748, 300)]},
+     "planets": [(480, 242, 28, 352800, "#2ec4a6", "A"), (480, 358, 28, 352800, "#3a9ad9", "B")],
+     "cores": [(214, 131), (462, 35), (719, 112)]},
     {"name": "Long Haul", "sub": "Weak gravity, long road. One patient launch.",
      "start": (60, 545), "target": (900, 55),
      "par": 2, "max_burns": 4,
-     "planets": [(480, 300, 18, 97200, "#8fa8c8", "Far")],
-     "cores": [(260, 372), (453, 224), (689, 116)]},
+     "planets": [(480, 300, 18, 145800, "#8fa8c8", "Far")],
+     "cores": [(194, 358), (387, 171), (642, 81)]},
     {"name": "Slalom", "sub": "Three gates, three bends. Weave the staircase.",
      "start": (70, 140), "target": (890, 460),
      "par": 2, "max_burns": 4,
-     "planets": [(300, 430, 24, 172800, "#2ec4a6", "S1"), (480, 170, 24, 172800, "#e08a3c", "S2"), (660, 430, 24, 172800, "#3a9ad9", "S3")],
-     "cores": [(285, 220), (482, 292), (700, 367)]},
+     "planets": [(300, 430, 24, 259200, "#2ec4a6", "S1"), (480, 170, 24, 259200, "#e08a3c", "S2"), (660, 430, 24, 259200, "#3a9ad9", "S3")],
+     "cores": [(147, 359), (360, 549), (629, 575)]},
     {"name": "Twin Suns", "sub": "Two heavies side by side. Split them or swing wide.",
      "start": (80, 520), "target": (880, 80),
      "par": 2, "max_burns": 4,
-     "planets": [(405, 300, 30, 270000, "#e08a3c", "Sun A"), (555, 300, 30, 270000, "#c9a227", "Sun B")],
+     "planets": [(405, 300, 30, 405000, "#e08a3c", "Sun A"), (555, 300, 30, 405000, "#c9a227", "Sun B")],
      "cores": [(196, 295), (391, 123), (657, 66)]},
     {"name": "Low Orbit", "sub": "Skim the giant's sky and fall home.",
      "start": (90, 110), "target": (870, 110),
      "par": 2, "max_burns": 4,
-     "planets": [(480, 360, 62, 1153200, "#d96c4f", "Giant")],
+     "planets": [(480, 360, 62, 1729800, "#d96c4f", "Giant")],
      "cores": [(198, 253), (452, 441), (701, 319)]},
     {"name": "Crosswind", "sub": "Four pulls at once in the corridor. Hold the middle.",
      "start": (70, 300), "target": (890, 300),
      "par": 2, "max_burns": 4,
-     "planets": [(320, 195, 22, 145200, "#2ec4a6", "N1"), (320, 405, 22, 145200, "#e08a3c", "S1"), (640, 195, 22, 145200, "#3a9ad9", "N2"), (640, 405, 22, 145200, "#7a6fd0", "S2")],
-     "cores": [(290, 300), (483, 300), (692, 300)]},
+     "planets": [(320, 195, 22, 217800, "#2ec4a6", "N1"), (320, 405, 22, 217800, "#e08a3c", "S1"), (640, 195, 22, 217800, "#3a9ad9", "N2"), (640, 405, 22, 217800, "#7a6fd0", "S2")],
+     "cores": [(240, 418), (471, 463), (700, 420)]},
     {"name": "The Gauntlet", "sub": "Everything you have learned, five planets deep.",
      "start": (60, 300), "target": (900, 300),
      "par": 3, "max_burns": 5,
-     "planets": [(250, 180, 20, 120000, "#2ec4a6", "G1"), (400, 430, 26, 202800, "#e08a3c", "G2"), (560, 160, 20, 120000, "#3a9ad9", "G3"), (700, 420, 26, 202800, "#7a6fd0", "G4"), (820, 240, 18, 97200, "#d94f8a", "G5")],
-     "cores": [(284, 298), (479, 294), (694, 294)]},
+     "planets": [(250, 180, 20, 180000, "#2ec4a6", "G1"), (400, 430, 26, 304200, "#e08a3c", "G2"), (560, 160, 20, 180000, "#3a9ad9", "G3"), (700, 420, 26, 304200, "#7a6fd0", "G4"), (820, 240, 18, 145800, "#d94f8a", "G5")],
+     "cores": [(206, 469), (446, 574), (713, 534)]},
     {"name": "Drift", "sub": "The planet won't sit still. Time your launch.",
      "start": (80, 300), "target": (880, 300),
      "par": 2, "max_burns": 4,
@@ -226,7 +226,7 @@ LEVELS = [
     {"name": "The Shortcut", "sub": "A wormhole jumps the wall. Mind the exit speed.",
      "start": (70, 300), "target": (890, 300),
      "par": 2, "max_burns": 4,
-     "planets": [(480, 300, 26, 202800, "#c65b7a", "Block")],
+     "planets": [(480, 300, 26, 304200, "#c65b7a", "Block")],
      "wormholes": [(300, 150, 660, 450)],
      "cores": [(192, 214), (678, 439), (785, 369)]},
     {"name": "Patrol", "sub": "Twin planets on patrol. Cross between their passes.",
@@ -244,13 +244,141 @@ LEVELS = [
     {"name": "Crossing", "sub": "A drifting world, a wormhole, and a long way home.",
      "start": (60, 540), "target": (900, 60),
      "par": 3, "max_burns": 5,
-     "planets": [(480, 300, 24, 172800, "#3a9ad9", "Mid"),
+     "planets": [(480, 300, 24, 259200, "#3a9ad9", "Mid"),
                  {"x": 250, "y": 120, "r": 20, "color": "#d94f8a",
                   "label": "Rogue",
                   "orbit": {"cx": 250, "cy": 180, "radius": 60,
                             "speed": 0.3, "phase": 0.0}}],
      "wormholes": [(150, 520, 760, 120)],
      "cores": [(315, 425), (532, 316), (725, 178)]},
+    {"name": "Ricochet", "sub": "Bank it off both planets.",
+     "start": (70, 520), "target": (890, 80),
+     "par": 2, "max_burns": 4,
+     "planets": [(350, 380, 30, 405000, "#3a9ad9", "Bank A"),
+                 (640, 220, 30, 405000, "#e08a3c", "Bank B")],
+     "cores": [(316, 564), (583, 494), (798, 322)]},
+    {"name": "The Spiral", "sub": "Fall around the big one.",
+     "start": (80, 80), "target": (880, 520),
+     "par": 2, "max_burns": 4,
+     "planets": [(480, 300, 40, 720000, "#2ec4a6", "Maelstrom"),
+                 (250, 480, 20, 180000, "#3a9ad9", "Eddy"),
+                 (710, 120, 20, 180000, "#e08a3c", "Drift")],
+     "cores": [(321, 32), (601, 49), (820, 256)]},
+    {"name": "Pinball", "sub": "Four bumpers, one lane.",
+     "start": (60, 300), "target": (900, 300),
+     "par": 2, "max_burns": 4,
+     "planets": [(280, 200, 22, 217800, "#3a9ad9", "B1"),
+                 (480, 400, 22, 217800, "#e08a3c", "B2"),
+                 (680, 200, 22, 217800, "#2ec4a6", "B3"),
+                 (480, 120, 18, 145800, "#c65b7a", "B4")],
+     "cores": [(221, 115), (482, 32), (743, 106)]},
+    {"name": "Deep Field", "sub": "Small planets, long way home.",
+     "start": (60, 90), "target": (900, 510),
+     "par": 2, "max_burns": 4,
+     "planets": [(300, 300, 18, 145800, "#3a9ad9", "Pebble"),
+                 (550, 180, 18, 145800, "#e08a3c", "Grain"),
+                 (700, 420, 18, 145800, "#2ec4a6", "Speck")],
+     "cores": [(288, 42), (557, 66), (779, 254)]},
+    {"name": "Bouncer", "sub": "New planet type: REPULSORS (orange dashed rings) push instead of pull. Thread the gate.",
+     "start": (70, 300), "target": (890, 300),
+     "par": 2, "max_burns": 4,
+     "planets": [{"x": 480, "y": 180, "r": 26, "color": "#e08a3c",
+                  "label": "Post N", "repel": True},
+                 {"x": 480, "y": 420, "r": 26, "color": "#e08a3c",
+                  "label": "Post S", "repel": True}],
+     "cores": [(283, 262), (479, 228), (675, 248)]},
+    {"name": "The Anvil", "sub": "One huge planet. Everything bends.",
+     "start": (70, 300), "target": (890, 300),
+     "par": 2, "max_burns": 4,
+     "planets": [(520, 300, 44, 871200, "#c65b7a", "Anvil")],
+     "cores": [(206, 140), (436, 37), (705, 93)]},
+    {"name": "Crosshairs", "sub": "Through the cross, on the diagonal.",
+     "start": (70, 90), "target": (890, 510),
+     "par": 2, "max_burns": 4,
+     "planets": [(480, 300, 24, 259200, "#3a9ad9", "Heart"),
+                 (480, 110, 20, 180000, "#e08a3c", "North"),
+                 (480, 490, 20, 180000, "#2ec4a6", "South"),
+                 (290, 300, 20, 180000, "#c65b7a", "West"),
+                 (670, 300, 20, 180000, "#3a9ad9", "East")],
+     "cores": [(154, 316), (348, 514), (630, 568)]},
+    {"name": "Undertow", "sub": "The gate is blocked. Take the wormhole.",
+     "start": (70, 90), "target": (890, 510),
+     "par": 2, "max_burns": 4,
+     "planets": [(480, 300, 34, 520200, "#e08a3c", "Block")],
+     "wormholes": [(200, 510, 760, 90)],
+     "cores": [(87, 294), (181, 497), (853, 289)]},
+    {"name": "The Pendulum", "sub": "Time the swing.",
+     "start": (70, 300), "target": (890, 300),
+     "par": 3, "max_burns": 5,
+     "planets": [{"x": 480, "y": 300, "r": 22, "color": "#3a9ad9",
+                  "label": "Pivot"},
+                 {"x": 480, "y": 150, "r": 20, "color": "#e08a3c",
+                  "label": "Bob",
+                  "orbit": {"cx": 480, "cy": 300, "radius": 150,
+                            "speed": 0.3, "phase": -1.5708}}],
+     "cores": [(245, 123), (495, 38), (723, 119)]},
+    {"name": "Final Approach", "sub": "Everything at once. Good luck, pilot.",
+     "start": (60, 60), "target": (900, 540),
+     "par": 3, "max_burns": 5,
+     "planets": [{"x": 300, "y": 300, "r": 26, "color": "#3a9ad9",
+                  "label": "Anchor"},
+                 {"x": 700, "y": 180, "r": 24, "color": "#d95f4b",
+                  "label": "Bumper", "repel": True},
+                 {"x": 560, "y": 295, "r": 18, "color": "#2ec4a6",
+                  "label": "Runner",
+                  "orbit": {"cx": 560, "cy": 380, "radius": 85,
+                            "speed": 0.35, "phase": -1.5708}}],
+     "wormholes": [(120, 540, 830, 70)],
+     "cores": [(86, 289), (120, 518), (871, 289)]},
+    {"name": "Patrol Line", "sub": "New: PATH planets patrol a route instead of circling - a straight line, or a custom path. Time your launch.",
+     "start": (60, 520), "target": (900, 80),
+     "par": 3, "max_burns": 5,
+     "planets": [{"x": 200, "y": 380, "r": 22, "color": "#3a9ad9",
+                  "label": "Patrol",
+                  "path": {"pts": [[200, 380], [760, 380]],
+                           "speed": 60.0, "phase": 0.0}},
+                 {"x": 150, "y": 150, "r": 18, "color": "#2ec4a6",
+                  "label": "Weaver",
+                  "path": {"pts": [[150, 150], [350, 90], [570, 230]],
+                           "speed": 45.0, "phase": 0.0}},
+                 (480, 120, 22, 217800, "#e08a3c", "North")],
+     "cores": [(277, 499), (519, 424), (717, 269)]},
+    {"name": 'The Gatekeeper', "sub": 'A path planet patrols the corridor up and down. Slip through when the gate is open.',
+     "start": (70, 300), "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 120, 'r': 24, 'mu': 259200, 'color': '#3a9ad9', 'label': 'Gatekeeper', 'path': {'pts': [[480, 120], [480, 480]], 'speed': 55.0, 'phase': 0.0}},
+        (300, 130, 20, 180000, '#e08a3c', 'North'),
+        (660, 470, 20, 180000, '#c65b7a', 'South'),
+     ],
+     "par": 2, "max_burns": 4,
+     "cores": [(238, 284), (437, 249), (657, 258)]},
+    {"name": 'Zigzag', "sub": 'One planet runs a zigzag route across the middle. Read its pattern, then thread past it.',
+     "start": (60, 80), "target": (900, 520),
+     "planets": [
+        {'x': 250, 'y': 300, 'r': 20, 'mu': 180000, 'color': '#7a6fd0', 'label': 'Zigzag', 'path': {'pts': [[250, 300], [400, 180], [550, 420], [700, 260]], 'speed': 50.0, 'phase': 0.0}},
+        (480, 90, 18, 145800, '#2ec4a6', 'Top'),
+        (200, 480, 22, 217800, '#d96c4f', 'Low'),
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(253, 202), (459, 332), (673, 443)]},
+    {"name": 'Cross Traffic', "sub": 'Two patrols cross the field - one runs across, one runs down. Mind the intersection.',
+     "start": (80, 520), "target": (880, 90),
+     "planets": [
+        {'x': 150, 'y': 200, 'r': 20, 'mu': 180000, 'color': '#e08a3c', 'label': 'Westbound', 'path': {'pts': [[150, 200], [810, 200]], 'speed': 66.0, 'phase': 0.0}},
+        {'x': 620, 'y': 90, 'r': 20, 'mu': 180000, 'color': '#c65b7a', 'label': 'Southbound', 'path': {'pts': [[620, 90], [620, 510]], 'speed': 84.0, 'phase': 0.0}},
+        (330, 420, 24, 259200, '#3a9ad9', 'Anchor'),
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(295, 472), (506, 369), (695, 245)]},
+    {"name": 'The Long Patrol', "sub": 'A heavy hauler walks a long V route while a fast scout sweeps the bottom. Two clocks to beat.',
+     "start": (60, 300), "target": (905, 300),
+     "planets": [
+        {'x': 200, 'y': 150, 'r': 28, 'mu': 352800, 'color': '#d96c4f', 'label': 'Hauler', 'path': {'pts': [[200, 150], [480, 450], [760, 150]], 'speed': 40.0, 'phase': 0.0}},
+        {'x': 150, 'y': 520, 'r': 14, 'mu': 88200, 'color': '#2ec4a6', 'label': 'Scout', 'path': {'pts': [[150, 520], [810, 520]], 'speed': 110.0, 'phase': 0.0}},
+        (480, 300, 16, 115200, '#7a6fd0', 'Hub'),
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(250, 328), (448, 357), (670, 356)]},
 ]
 
 
@@ -294,20 +422,63 @@ def check_hit(x, y, planets, target):
     return None
 
 
+def path_position(pts, speed, phase, t, loop=False):
+    """Position along a polyline path at time t. Normally the planet
+    ping-pongs along the points at `speed` px/s; `phase` (0..1) is
+    where it starts in the cycle. With `loop` the route closes (the
+    last point connects back to the first) and the planet rides it
+    in a circle, like an orbit. Pure function of t, like orbits."""
+    if len(pts) < 2:
+        return float(pts[0][0]), float(pts[0][1])
+    route = list(pts) + [pts[0]] if loop else list(pts)
+    segs = []
+    total = 0.0
+    for i in range(len(route) - 1):
+        d = math.hypot(route[i + 1][0] - route[i][0],
+                       route[i + 1][1] - route[i][1])
+        segs.append(d)
+        total += d
+    if total <= 0:
+        return float(pts[0][0]), float(pts[0][1])
+    if loop:
+        s = (phase * total + speed * t) % total
+    else:
+        cycle = 2.0 * total
+        s = (phase * cycle + speed * t) % cycle
+        if s > total:
+            s = cycle - s
+    for i, d in enumerate(segs):
+        if s <= d or i == len(segs) - 1:
+            f = 0.0 if d == 0 else s / d
+            return (route[i][0] + (route[i + 1][0] - route[i][0]) * f,
+                    route[i][1] + (route[i + 1][1] - route[i][1]) * f)
+        s -= d
+    return float(pts[-1][0]), float(pts[-1][1])
+
+
 def planet_snapshot(specs, t):
     """Planet tuples (x, y, r, mu, color, label) at mission time t.
-    Specs are dicts; a spec with an 'orbit' moves on its circle."""
+    Specs are dicts; a spec with an 'orbit' moves on its circle, a
+    spec with a 'path' patrols its polyline (path wins if both)."""
     out = []
     for sp in specs:
-        orb = sp.get("orbit")
-        if orb:
+        if sp.get("path"):
+            px, py = path_position(sp["path"]["pts"],
+                                   sp["path"].get("speed", 60.0),
+                                   sp["path"].get("phase", 0.0), t,
+                                   loop=bool(sp["path"].get("loop")))
+        elif sp.get("orbit"):
+            orb = sp["orbit"]
             ang = orb["phase"] + orb["speed"] * t
             px = orb["cx"] + math.cos(ang) * orb["radius"]
             py = orb["cy"] + math.sin(ang) * orb["radius"]
         else:
             px, py = sp["x"], sp["y"]
         r = sp["r"]
-        out.append((px, py, r, GRAV_K * r * r, sp["color"], sp["label"]))
+        mu = GRAV_K * r * r
+        if sp.get("repel"):
+            mu = -mu   # repulsor: same strength, pushes instead of pulls
+        out.append((px, py, r, mu, sp["color"], sp["label"]))
     return out
 
 
@@ -356,6 +527,13 @@ def level_specs(lv):
                   "color": p["color"], "label": p["label"]}
             if p.get("orbit"):
                 sp["orbit"] = dict(p["orbit"])
+            if p.get("path"):
+                sp["path"] = {"pts": [list(q) for q in p["path"]["pts"]],
+                              "speed": p["path"].get("speed", 60.0),
+                              "phase": p["path"].get("phase", 0.0),
+                              "loop": p["path"].get("loop") is True}
+            if p.get("repel"):
+                sp["repel"] = True
         else:
             px, py, r, _mu, color, label = p
             sp = {"x": px, "y": py, "r": r, "color": color, "label": label}
@@ -384,7 +562,9 @@ def level_to_code(lv):
                "planets": [{"x": p["x"], "y": p["y"], "r": p["r"],
                             "color": p.get("color", "#3fa7ff"),
                             "label": p.get("label", ""),
-                            **({"orbit": p["orbit"]} if "orbit" in p else {})}
+                            **({"orbit": p["orbit"]} if "orbit" in p else {}),
+                            **({"path": p["path"]} if "path" in p else {}),
+                            **({"repel": True} if p.get("repel") else {})}
                            for p in level_specs(lv)],
                "cores": [[c[0], c[1]] for c in lv["cores"]],
                "wormholes": [list(w) for w in level_wormholes(lv)]}
@@ -455,6 +635,8 @@ def code_to_level(code):
                   "r": _code_num(p.get("r"), 12, 70, "planet radius"),
                   "color": color,
                   "label": str(p.get("label", ""))[:24]}
+        if p.get("repel") is True:
+            planet["repel"] = True
         orb = p.get("orbit")
         if isinstance(orb, dict):
             planet["orbit"] = {
@@ -464,6 +646,21 @@ def code_to_level(code):
                                     "orbit radius"),
                 "speed": _code_num(orb.get("speed"), -2, 2, "orbit speed"),
                 "phase": _code_num(orb.get("phase"), -7, 7, "orbit phase")}
+        pth = p.get("path")
+        if isinstance(pth, dict) and isinstance(pth.get("pts"), list) \
+                and 2 <= len(pth["pts"]) <= 8:
+            planet["path"] = {
+                "pts": [[_code_num(q[0], 0, WIDTH, "path x"),
+                         _code_num(q[1], 0, HEIGHT, "path y")]
+                        for q in pth["pts"]
+                        if isinstance(q, (list, tuple)) and len(q) == 2],
+                "speed": _code_num(pth.get("speed", 60), 5, 300,
+                                   "path speed"),
+                "phase": _code_num(pth.get("phase", 0), 0, 1, "path phase")}
+            if pth.get("loop") is True:
+                planet["path"]["loop"] = True
+            if len(planet["path"]["pts"]) < 2:
+                del planet["path"]
         planets.append(planet)
 
     cores = [_code_point(c, "core") for c in data.get("cores", [])[:12]]
@@ -640,7 +837,8 @@ class OrbitalGame:
                           ("Editor", self.enter_editor),
                           ("Share level", self.share_level),
                           ("Paste level", self.paste_level_dialog),
-                          ("Delete level", self.delete_saved_level)):
+                          ("Delete level", self.delete_saved_level),
+                          ("Clear ghost", self.clear_ghost)):
             btn = tk.Button(bar, text=text, command=cmd, bg="#16213c",
                             fg=COLORS["text"], activebackground="#22335c",
                             relief="flat", padx=10, pady=4, takefocus=0)
@@ -673,6 +871,7 @@ class OrbitalGame:
         for text, tool in (("Planet", "planet"), ("Start", "start"),
                            ("Dock", "target"), ("Core", "core"),
                            ("Wormhole", "wormhole"), ("Orbit", "orbit"),
+                           ("Path", "path"),
                            ("Erase", "erase")):
             tk.Radiobutton(self.ed_bar, text=text, value=tool,
                            variable=self.ed_tool, bg="#0b1020",
@@ -847,7 +1046,35 @@ class OrbitalGame:
                 out["cores"] = dict(data.get("cores", {}))
             if data.get("v") == 4:
                 out["flybys"] = dict(data.get("flybys", {}))
-                out["ghost"] = dict(data.get("ghost", {}))
+                # Ghost entries are drawn from directly, so keep only
+                # well-formed ones: a dict whose pts are [x, y] number
+                # pairs. Anything else is dropped, not crashed on.
+                ghosts = {}
+                for key, gh in data.get("ghost", {}).items():
+                    if not isinstance(gh, dict):
+                        continue
+                    pts = gh.get("pts")
+                    if not isinstance(pts, list) or len(pts) < 2:
+                        continue
+                    clean = []
+                    for q in pts:
+                        if not isinstance(q, (list, tuple)) \
+                                or len(q) != 2 \
+                                or not all(isinstance(v, (int, float))
+                                           for v in q):
+                            clean = None
+                            break
+                        clean.append([q[0], q[1]])
+                    if clean is None:
+                        continue
+                    try:
+                        ghosts[str(key)] = {
+                            "pts": clean,
+                            "burns": int(gh.get("burns", 99)),
+                            "stars": int(gh.get("stars", 0))}
+                    except Exception:
+                        continue
+                out["ghost"] = ghosts
                 custom = []
                 for lv in data.get("custom", []):
                     if isinstance(lv, dict) and "start" in lv \
@@ -1116,7 +1343,7 @@ class OrbitalGame:
     def on_press(self, event):
         gx, gy = event.x / self.S, event.y / self.S
         if self.mode == "editor":
-            self.ed_press(gx, gy)
+            self.ed_press(gx, gy, shift=bool(event.state & 0x1))
             return
         if self.paused:
             return
@@ -1481,6 +1708,9 @@ class OrbitalGame:
             len(LEVELS) + len(self.save["custom"])
         self.bar_btns["Delete level"].config(
             state="normal" if is_saved_custom else "disabled")
+        self.bar_btns["Clear ghost"].config(
+            state="normal"
+            if str(self.level_i) in self.save["ghost"] else "disabled")
 
     # ---------------- drawing ----------------
     def draw_static(self):
@@ -1526,11 +1756,20 @@ class OrbitalGame:
                                       width=1, dash=(1, 4), state="hidden")
         self.it_planets = []
         for (px, py, r, _mu, color, label) in self.planets:
-            well = c.create_oval(X(px - r * 1.7), X(py - r * 1.7),
-                                 X(px + r * 1.7), X(py + r * 1.7),
-                                 outline="#16294d", width=1)
-            body = c.create_oval(X(px - r), X(py - r), X(px + r), X(py + r),
-                                 fill=color, outline="#cdd8ff", width=1)
+            if _mu < 0:   # repulsor: dashed orange push-ring, warm outline
+                well = c.create_oval(X(px - r * 1.7), X(py - r * 1.7),
+                                     X(px + r * 1.7), X(py + r * 1.7),
+                                     outline="#ff9a3c", width=2, dash=(4, 3))
+                body = c.create_oval(X(px - r), X(py - r), X(px + r),
+                                     X(py + r), fill=color,
+                                     outline="#ffd9a8", width=1)
+            else:
+                well = c.create_oval(X(px - r * 1.7), X(py - r * 1.7),
+                                     X(px + r * 1.7), X(py + r * 1.7),
+                                     outline="#16294d", width=1)
+                body = c.create_oval(X(px - r), X(py - r), X(px + r),
+                                     X(py + r), fill=color,
+                                     outline="#cdd8ff", width=1)
             hi = c.create_oval(X(px - r * 0.35), X(py - r * 0.35),
                                X(px + r * 0.35), X(py + r * 0.35),
                                fill="#ffffff", outline="", stipple="gray25")
@@ -1759,6 +1998,13 @@ class OrbitalGame:
                      "label": sp["label"]}
                 if sp.get("orbit"):
                     p["orbit"] = dict(sp["orbit"])
+                if sp.get("path"):
+                    p["path"] = {"pts": [list(q) for q in sp["path"]["pts"]],
+                                 "speed": sp["path"].get("speed", 60.0),
+                                 "phase": sp["path"].get("phase", 0.0),
+                                 "loop": sp["path"].get("loop") is True}
+                if sp.get("repel"):
+                    p["repel"] = True
                 planets.append(p)
             self.editor = {
                 "planets": planets,
@@ -1767,7 +2013,7 @@ class OrbitalGame:
                 "cores": [[c[0], c[1]] for c in lv["cores"]],
                 "wormholes": [list(w) for w in level_wormholes(lv)],
                 "drag": None, "sel": None, "worm_next": None,
-                "orbit_next": None}
+                "orbit_next": None, "path_next": None}
             self.ed_name.delete(0, "end")
             self.ed_name.insert(0, lv["name"] + " copy")
             self.ed_par.delete(0, "end")
@@ -1784,7 +2030,16 @@ class OrbitalGame:
             text="Drag planets to move them - wheel over a planet "
                  "resizes it - wormholes go in pairs (A, then B). "
                  "Orbit tool: click a planet, then its center point; "
-                 "wheel = orbit size, Shift+wheel = speed.")
+                 "wheel = orbit size, Shift+wheel = speed. "
+                 "Shift+click a planet (Planet tool) toggles REPEL: "
+                 "an orange dashed ring means it pushes instead of pulls. "
+                 "Path tool: click a planet, then click waypoints to "
+                 "build its route (2 points = a straight patrol line, "
+                 "more = a custom path); click the planet again to "
+                 "finish, wheel over a pathed planet = path speed. "
+                 "Shift+click a pathed planet (Path tool) toggles LOOP: "
+                 "it rides the route in a circle, back to the start, "
+                 "like an orbit, instead of ping-ponging.")
         self.hud1.config(text="Level Editor")
         self.hud2.config(text="  Build a mission, then Playtest it or "
                               "Save level to keep it.")
@@ -1820,6 +2075,11 @@ class OrbitalGame:
             q = dict(p)
             if "orbit" in q:
                 q["orbit"] = dict(q["orbit"])
+            if "path" in q:
+                q["path"] = {"pts": [list(pt) for pt in q["path"]["pts"]],
+                             "speed": q["path"].get("speed", 60.0),
+                             "phase": q["path"].get("phase", 0.0),
+                             "loop": q["path"].get("loop") is True}
             planets.append(q)
         return {"name": name, "sub": "A mission built in the editor.",
                 "start": tuple(ed["start"]), "target": tuple(ed["target"]),
@@ -1940,6 +2200,22 @@ class OrbitalGame:
                   takefocus=0).pack(side="left", padx=4)
         txt.focus_set()
 
+    def clear_ghost(self):
+        """Remove the saved best-run ghost line for the open level.
+        The line is just a visual guide - clearing it changes nothing
+        else, and the next docked run that beats the old mark records
+        a fresh ghost as usual."""
+        if self.mode == "editor":
+            return
+        key = str(self.level_i)
+        if key in self.save["ghost"]:
+            del self.save["ghost"][key]
+            self.store_save()
+            self.message = "Ghost cleared for this level."
+        else:
+            self.message = "This level has no ghost to clear."
+        self.sync_ui()
+
     def delete_saved_level(self):
         """Delete the user-made level that is currently open. Only
         levels saved from the editor can be deleted - campaign levels
@@ -1981,7 +2257,7 @@ class OrbitalGame:
             "start": [80, 300], "target": [880, 300],
             "cores": [], "wormholes": [],
             "drag": None, "sel": None, "worm_next": None,
-            "orbit_next": None}
+            "orbit_next": None, "path_next": None}
         self.ed_dirty = True
 
     @staticmethod
@@ -1995,7 +2271,7 @@ class OrbitalGame:
             p["y"] = round(orb["cy"] + math.sin(orb["phase"])
                            * orb["radius"])
 
-    def ed_press(self, gx, gy):
+    def ed_press(self, gx, gy, shift=False):
         ed = self.editor
         if ed is None:
             return
@@ -2005,6 +2281,16 @@ class OrbitalGame:
         if tool == "planet":
             for i, p in enumerate(ed["planets"]):
                 if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
+                    if shift:
+                        # Shift+click toggles a repulsor (pushes
+                        # instead of pulls) on the clicked planet.
+                        if p.get("repel"):
+                            del p["repel"]
+                        else:
+                            p["repel"] = True
+                        ed["sel"] = i
+                        self.ed_dirty = True
+                        return
                     ed["drag"] = i
                     ed["sel"] = i
                     self.ed_dirty = True
@@ -2048,6 +2334,7 @@ class OrbitalGame:
                         "speed": 0.25,
                         "phase": round(math.atan2(p["y"] - gy,
                                                   p["x"] - gx), 4)}
+                    p.pop("path", None)   # one motion type per planet
                     ed["orbit_next"] = None
                     ed["sel"] = i
             else:
@@ -2059,12 +2346,65 @@ class OrbitalGame:
                         else:
                             ed["orbit_next"] = i
                         break
+        elif tool == "path":
+            hit = None
+            for i, p in enumerate(ed["planets"]):
+                if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
+                    hit = i
+                    break
+            if ed["path_next"] is not None \
+                    and ed["path_next"] >= len(ed["planets"]):
+                ed["path_next"] = None   # the planet it pointed at is gone
+            if ed["path_next"] is not None:
+                i = ed["path_next"]
+                p = ed["planets"][i]
+                if hit == i:
+                    # Clicked the armed planet again: finish. A path
+                    # with fewer than 2 points is no path at all.
+                    if "path" in p and len(p["path"]["pts"]) < 2:
+                        del p["path"]
+                    ed["path_next"] = None
+                    ed["sel"] = i
+                    self.ed_dirty = True
+                    return
+                if hit is None:
+                    if "path" not in p:
+                        p["path"] = {"pts": [[p["x"], p["y"]]],
+                                     "speed": 60.0, "phase": 0.0}
+                        p.pop("orbit", None)   # one motion type each
+                    if len(p["path"]["pts"]) < 8:
+                        p["path"]["pts"].append([round(gx), round(gy)])
+                    self.ed_dirty = True
+                    return
+                # Clicked a different planet: finish this one, then
+                # treat it as a fresh click on the new planet below.
+                if "path" in p and len(p["path"]["pts"]) < 2:
+                    del p["path"]
+                ed["path_next"] = None
+            if hit is not None:
+                p = ed["planets"][hit]
+                ed["sel"] = hit
+                if shift and "path" in p:
+                    # Shift+click a pathed planet: toggle LOOP - the
+                    # planet rides its route in a circle, back to the
+                    # start, instead of ping-ponging along it.
+                    if p["path"].get("loop"):
+                        del p["path"]["loop"]
+                    else:
+                        p["path"]["loop"] = True
+                elif "path" in p:
+                    del p["path"]        # click a pathed planet: stop it
+                else:
+                    ed["path_next"] = hit
+                self.ed_dirty = True
+                return
         elif tool == "erase":
             for i, p in enumerate(ed["planets"]):
                 if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
                     del ed["planets"][i]
                     ed["sel"] = None
                     ed["orbit_next"] = None   # indices just shifted
+                    ed["path_next"] = None
                     self.ed_dirty = True
                     return
             for i, cr in enumerate(ed["cores"]):
@@ -2088,7 +2428,16 @@ class OrbitalGame:
         p = ed["planets"][ed["drag"]]
         gx = max(30.0, min(WIDTH - 30.0, gx))
         gy = max(30.0, min(HEIGHT - 30.0, gy))
-        if "orbit" in p:
+        if "path" in p:
+            # Dragging a pathed planet moves its whole route.
+            dx, dy = gx - p["x"], gy - p["y"]
+            p["path"]["pts"] = [
+                [round(max(0.0, min(WIDTH, qx + dx))),
+                 round(max(0.0, min(HEIGHT, qy + dy)))]
+                for (qx, qy) in p["path"]["pts"]]
+            p["x"] = round(gx)
+            p["y"] = round(gy)
+        elif "orbit" in p:
             # Dragging an orbiting planet moves its whole orbit.
             orb = p["orbit"]
             orb["cx"] = round(max(0.0, min(WIDTH, orb["cx"]
@@ -2119,6 +2468,13 @@ class OrbitalGame:
                 and ed["sel"] < len(ed["planets"]):
             target = ed["planets"][ed["sel"]]
         if target is None:
+            return
+        if self.ed_tool.get() == "path" and "path" in target:
+            pth = target["path"]
+            pth["speed"] = round(max(5.0, min(300.0,
+                                               pth["speed"]
+                                               + direction * 5)), 1)
+            self.ed_dirty = True
             return
         if self.ed_tool.get() == "orbit" and "orbit" in target:
             orb = target["orbit"]
@@ -2175,6 +2531,23 @@ class OrbitalGame:
                               X(p["x"] + r0 + 10), X(p["y"] + r0 + 10),
                               outline=COLORS["danger"], width=2,
                               dash=(3, 3))
+            if p.get("path"):
+                pts = p["path"]["pts"]
+                if len(pts) >= 2:
+                    route = pts + [pts[0]] if p["path"].get("loop") else pts
+                    flat = [X(v) for q in route for v in q]
+                    c.create_line(*flat, fill=COLORS["dim"], width=1,
+                                  dash=(4, 4))
+                for (qx, qy) in pts:
+                    c.create_oval(X(qx - 3), X(qy - 3), X(qx + 3),
+                                  X(qy + 3), outline=COLORS["dim"],
+                                  width=1)
+            if ed.get("path_next") == i:
+                r0 = p["r"]
+                c.create_oval(X(p["x"] - r0 - 10), X(p["y"] - r0 - 10),
+                              X(p["x"] + r0 + 10), X(p["y"] + r0 + 10),
+                              outline=COLORS["danger"], width=2,
+                              dash=(3, 3))
         for i, p in enumerate(ed["planets"]):
             r = p["r"]
             if ed["sel"] == i:
@@ -2183,8 +2556,20 @@ class OrbitalGame:
                               outline=COLORS["probe"], width=1, dash=(3, 3))
             c.create_oval(X(p["x"] - r), X(p["y"] - r), X(p["x"] + r),
                           X(p["y"] + r), fill=p["color"],
-                          outline="#cdd8ff", width=1)
+                          outline="#ffd9a8" if p.get("repel") else "#cdd8ff",
+                          width=1)
+            if p.get("repel"):
+                c.create_oval(X(p["x"] - r * 1.7), X(p["y"] - r * 1.7),
+                              X(p["x"] + r * 1.7), X(p["y"] + r * 1.7),
+                              outline="#ff9a3c", width=2, dash=(4, 3))
             label = f'{p["label"]} r{r}'
+            if p.get("repel"):
+                label += " - REPEL"
+            if p.get("path"):
+                label += (f' - path {len(p["path"]["pts"])}pts'
+                          f' speed {p["path"]["speed"]:.0f}')
+                if p["path"].get("loop"):
+                    label += " LOOP"
             if p.get("orbit"):
                 label += (f' - orbit {p["orbit"]["radius"]:.0f}'
                           f' speed {p["orbit"]["speed"]:+.2f}')
