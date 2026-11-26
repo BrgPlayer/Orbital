@@ -64,6 +64,12 @@ BURN_SCALE = 1.15                # drag pixels -> burn delta-v
 BURN_MIN_DV = 7.0                # smaller drags don't count as a burn
 DOCK_RADIUS = 27                 # station docking ring radius, px
 CORE_RADIUS = 19                 # data core pickup distance, px
+FUEL_RADIUS = 19                 # fuel canister pickup distance, px
+FUEL_MAX = 8                     # fuel canisters per level
+SHAPE_MAX_PTS = 12               # vertices per custom-shaped planet
+SHAPE_MIN_AREA = 25.0            # px^2 - a smaller shape is a sliver
+ORBYTES_PER_WIN = 10             # orbytes per campaign win (replays count)
+COLOR_COST = 100                 # orbytes per probe color
 CRASH_PAD = 3                    # crash if within planet radius + this
 LOST_MARGIN = 70                 # px beyond the field = lost
 FLIGHT_TIMEOUT = 25.0            # seconds; longer flights end the run
@@ -102,6 +108,31 @@ COLORS = {
 
 PLANET_COLORS = ["#3a9ad9", "#e08a3c", "#2ec4a6", "#c65b7a", "#7a6fd0",
                  "#d96c4f", "#c9a227", "#8fa8c8"]
+
+# Probe colors for the shop: rainbow order, then light and dark.
+# The default probe (COLORS["probe"], gold) is free and not listed.
+PROBE_COLORS = [("Red", "#ff5252"), ("Orange", "#ff9a3c"),
+                ("Yellow", "#ffea00"), ("Green", "#4ade80"),
+                ("Blue", "#4da3ff"), ("Purple", "#b388ff"),
+                ("Light", "#f5f5f5"), ("Dark", "#333340")]
+PROBE_COLOR_HEX = {name: hexv for name, hexv in PROBE_COLORS}
+
+# Achievements: (key, title, description). Chapter sweeps cover
+# missions 1-10, 11-20, 21-30, 31-40, 41-50.
+ACHIEVEMENTS = [
+    ("under_par", "Under Par",
+     "Win a mission using fewer burns than its par."),
+    ("triple_flyby", "Triple Flyby",
+     "Skim 3 planets in a single flight and dock."),
+    ("chapter_1", "Chapter 1 Sweep", "Earn 3 stars on missions 1-10."),
+    ("chapter_2", "Chapter 2 Sweep", "Earn 3 stars on missions 11-20."),
+    ("chapter_3", "Chapter 3 Sweep", "Earn 3 stars on missions 21-30."),
+    ("chapter_4", "Chapter 4 Sweep", "Earn 3 stars on missions 31-40."),
+    ("chapter_5", "Chapter 5 Sweep", "Earn 3 stars on missions 41-50."),
+    ("campaign", "Campaign Complete",
+     "Dock on all 50 campaign missions."),
+]
+ACHIEVEMENT_TITLES = {k: t for k, t, _d in ACHIEVEMENTS}
 
 
 def _blend(hex_color, hex_target, frac):
@@ -233,7 +264,7 @@ LEVELS = [
      "par": 2, "max_burns": 4,
      "planets": [(480, 300, 26, 304200, "#c65b7a", "Block")],
      "wormholes": [(300, 150, 660, 450)],
-     "cores": [(192, 214), (678, 439), (785, 369)]},
+     "cores": [(192, 214), (696, 431), (785, 369)]},
     {"name": "Patrol", "sub": "Twin planets on patrol. Cross between their passes.",
      "start": (70, 120), "target": (890, 480),
      "par": 2, "max_burns": 4,
@@ -335,7 +366,7 @@ LEVELS = [
                   "orbit": {"cx": 560, "cy": 380, "radius": 85,
                             "speed": 0.35, "phase": -1.5708}}],
      "wormholes": [(120, 540, 830, 70)],
-     "cores": [(86, 289), (120, 518), (871, 289)]},
+     "cores": [(86, 289), (117, 499), (871, 289)]},
     {"name": "Patrol Line", "sub": "New: PATH planets patrol a route instead of circling - a straight line, or a custom path. Time your launch.",
      "start": (60, 520), "target": (900, 80),
      "par": 3, "max_burns": 5,
@@ -385,6 +416,128 @@ LEVELS = [
      ],
      "par": 3, "max_burns": 5,
      "cores": [(250, 328), (448, 357), (670, 356)]},
+    {"name": 'Shards', "sub": 'New planet type: SHAPED planets are polygons, not circles. The gravity pulls from the middle - the corners bite.',
+     "start": (70, 300), "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 38, 'color': '#3a9ad9', 'label': 'Shard', 'shape': [[0, -38], [33, 19], [-33, 19]]},
+     ],
+     "par": 2, "max_burns": 4,
+     "cores": [(219, 456), (462, 544), (714, 475)]},
+    {"name": 'The Diamond', "sub": 'A diamond world, and a wormhole past it.',
+     "start": (70, 300), "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 38, 'color': '#2ec4a6', 'label': 'Diamond', 'shape': [[0, -36], [30, 0], [0, 36], [-30, 0]]},
+     ],
+     "wormholes": [(300, 150, 660, 450)],
+     "par": 2, "max_burns": 4,
+     "cores": [(223, 474), (477, 564), (734, 488)]},
+    {"name": 'Hex Field', "sub": 'A hexagon on the move. Time the launch - the corners sweep a wide arc.',
+     "start": (80, 300), "target": (880, 300),
+     "planets": [
+        {'x': 600, 'y': 300, 'r': 38, 'color': '#7a6fd0', 'label': 'Hex', 'shape': [[34, 0], [17, 29], [-17, 29], [-34, 0], [-17, -29], [17, -29]], 'orbit': {'cx': 480, 'cy': 300, 'radius': 120, 'speed': 0.25, 'phase': 0.0}},
+        {'x': 300, 'y': 450, 'r': 22, 'color': '#e08a3c', 'label': 'Low'},
+     ],
+     "fuel": [(533, 553)],
+     "par": 3, "max_burns": 5,
+     "cores": [(210, 493), (480, 567), (706, 458)]},
+    {"name": 'The Wedge', "sub": 'A triangle and a patrol. Pick your gap.',
+     "start": (70, 90), "target": (890, 510),
+     "planets": [
+        {'x': 480, 'y': 380, 'r': 38, 'color': '#c65b7a', 'label': 'Wedge', 'shape': [[0, -38], [33, 19], [-33, 19]]},
+        {'x': 250, 'y': 300, 'r': 20, 'color': '#3a9ad9', 'label': 'Sentry', 'path': {'pts': [[250, 300], [250, 500]], 'speed': 55.0, 'phase': 0.0}},
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(121, 289), (299, 510), (612, 570)]},
+    {"name": 'Shard Storm', "sub": 'Two shaped worlds and a wormhole. Thread the storm.',
+     "start": (60, 520), "target": (900, 80),
+     "planets": [
+        {'x': 350, 'y': 380, 'r': 38, 'color': '#3a9ad9', 'label': 'Shard A', 'shape': [[0, -38], [33, 19], [-33, 19]]},
+        {'x': 640, 'y': 220, 'r': 38, 'color': '#e08a3c', 'label': 'Shard B', 'shape': [[0, -36], [34, -11], [21, 29], [-21, 29], [-34, -11]]},
+     ],
+     "wormholes": [(150, 120, 800, 480)],
+     "par": 3, "max_burns": 5,
+     "cores": [(423, 556), (189, 108), (511, 43)]},
+    {"name": 'Push Triangle', "sub": 'New: SHAPED REPULSORS push instead of pull. Thread the triangle gate.',
+     "start": (70, 300), "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 180, 'r': 38, 'color': '#e08a3c', 'label': 'Post N', 'repel': True, 'shape': [[0, -38], [33, 19], [-33, 19]]},
+        {'x': 480, 'y': 420, 'r': 38, 'color': '#e08a3c', 'label': 'Post S', 'repel': True, 'shape': [[0, -38], [33, 19], [-33, 19]]},
+     ],
+     "par": 2, "max_burns": 4,
+     "cores": [(280, 270), (470, 243), (657, 263)]},
+    {"name": 'Diamond Push', "sub": 'A small diamond that pushes, a world that pulls. Ride both - dive under the diamond.',
+     "start": (70, 90), "target": (890, 510),
+     "planets": [
+        {'x': 480, 'y': 170, 'r': 38, 'color': '#d95f4b', 'label': 'Pusher', 'repel': True, 'shape': [[0, -24], [20, 0], [0, 24], [-20, 0]]},
+        {'x': 300, 'y': 430, 'r': 24, 'color': '#3a9ad9', 'label': 'Pull'},
+     ],
+     "par": 2, "max_burns": 4,
+     "cores": [(147, 314), (414, 523), (662, 494)]},
+    {"name": 'Pentagon Gate', "sub": 'The gate is a pentagon that pushes. Take the wormhole.',
+     "start": (70, 300), "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 38, 'color': '#e08a3c', 'label': 'Gate', 'repel': True, 'shape': [[0, -36], [34, -11], [21, 29], [-21, 29], [-34, -11]]},
+     ],
+     "wormholes": [(200, 510, 760, 90)],
+     "fuel": [(611, 143)],
+     "par": 2, "max_burns": 4,
+     "cores": [(415, 222), (719, 92), (515, 372)]},
+    {"name": 'Repulsor Patrol', "sub": 'A small triangle repulsor on patrol. Cross between its passes.',
+     "start": (70, 120), "target": (890, 480),
+     "planets": [
+        {'x': 480, 'y': 120, 'r': 38, 'color': '#e08a3c', 'label': 'Sweeper', 'repel': True, 'shape': [[0, -24], [21, 12], [-21, 12]], 'path': {'pts': [[480, 120], [480, 480]], 'speed': 25.0, 'phase': 0.0}},
+        {'x': 300, 'y': 300, 'r': 20, 'color': '#2ec4a6', 'label': 'Anchor'},
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(291, 153), (492, 200), (676, 328)]},
+    {"name": 'The Star', "sub": 'A star that pushes, two worlds that pull. The sharpest gate yet.',
+     "start": (60, 60), "target": (900, 540),
+     "planets": [
+        {'x': 480, 'y': 170, 'r': 38, 'color': '#d95f4b', 'label': 'Star', 'repel': True, 'shape': [[0.0, -28.0], [7.4, -10.2], [26.6, -8.7], [12.0, 3.9], [16.5, 22.7], [0.0, 12.6], [-16.5, 22.7], [-12.0, 3.9], [-26.6, -8.7], [-7.4, -10.2]]},
+        {'x': 300, 'y': 440, 'r': 22, 'color': '#3a9ad9', 'label': 'Low'},
+        {'x': 680, 'y': 380, 'r': 22, 'color': '#2ec4a6', 'label': 'High'},
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(154, 259), (323, 505), (608, 549)]},
+    {"name": 'Moving Dock', "sub": 'New: the DOCK moves now - it circles its anchor. Launch when the ring is where your line ends.',
+     "start": (70, 300), "target": {'x': 910, 'y': 300, 'orbit': {'cx': 840, 'cy': 300, 'radius': 70, 'speed': 0.2, 'phase': 0.0}},
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 30, 'color': '#3a9ad9', 'label': 'Kepler'},
+     ],
+     "par": 2, "max_burns": 4,
+     "cores": [(237, 456), (499, 531), (750, 442)]},
+    {"name": 'Moving Pad', "sub": 'The PAD moves now - it circles while you aim. The launch point is wherever it is when you press SPACE.',
+     "start": {'x': 140, 'y': 300, 'orbit': {'cx': 80, 'cy': 300, 'radius': 60, 'speed': 0.25, 'phase': 0.0}}, "target": (890, 300),
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 30, 'color': '#3a9ad9', 'label': 'Kepler'},
+     ],
+     "fuel": [(409, 541)],
+     "par": 2, "max_burns": 4,
+     "cores": [(272, 490), (509, 547), (734, 467)]},
+    {"name": 'Both Moving', "sub": 'The pad patrols, the dock circles. Two clocks, one line.',
+     "start": {'x': 70, 'y': 500, 'path': {'pts': [[70, 500], [70, 100]], 'speed': 50.0, 'phase': 0.0}}, "target": {'x': 940, 'y': 300, 'orbit': {'cx': 880, 'cy': 300, 'radius': 60, 'speed': 0.2, 'phase': 0.0}},
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 28, 'color': '#7a6fd0', 'label': 'Hub'},
+     ],
+     "par": 3, "max_burns": 5,
+     "cores": [(252, 139), (446, 185), (634, 257)]},
+    {"name": 'Patrol Dock', "sub": 'The dock runs a patrol line up and down. Dock when the ring is open.',
+     "start": (70, 300), "target": {'x': 880, 'y': 100, 'path': {'pts': [[880, 100], [880, 500]], 'speed': 60.0, 'phase': 0.0}},
+     "planets": [
+        {'x': 480, 'y': 300, 'r': 26, 'color': '#3a9ad9', 'label': 'Mid'},
+     ],
+     "fuel": [(386, 411)],
+     "par": 3, "max_burns": 5,
+     "cores": [(264, 370), (467, 435), (674, 482)]},
+    {"name": 'The Finale', "sub": 'Everything at once: a moving pad, a patrolling dock, a shaped world, and a repulsor. Fly it home.',
+     "start": {'x': 160, 'y': 300, 'orbit': {'cx': 90, 'cy': 300, 'radius': 70, 'speed': 0.25, 'phase': 0.0}}, "target": {'x': 890, 'y': 120, 'path': {'pts': [[890, 120], [890, 480]], 'speed': 55.0, 'phase': 0.0}},
+     "planets": [
+        {'x': 400, 'y': 300, 'r': 38, 'color': '#3a9ad9', 'label': 'Shard', 'shape': [[0, -38], [33, 19], [-33, 19]]},
+        {'x': 650, 'y': 300, 'r': 22, 'color': '#d95f4b', 'label': 'Bumper', 'repel': True},
+     ],
+     "fuel": [(447, 433)],
+     "par": 3, "max_burns": 5,
+     "cores": [(327, 404), (522, 445), (702, 468)]},
 ]
 
 
@@ -394,7 +547,8 @@ LEVELS = [
 def gravity_at(x, y, planets):
     """Total gravitational acceleration at (x, y), web-style softened."""
     ax = ay = 0.0
-    for (px, py, _r, mu, _c, _label) in planets:
+    for p in planets:
+        px, py, mu = p[0], p[1], p[3]
         dx, dy = px - x, py - y
         d2 = dx * dx + dy * dy
         d = math.sqrt(d2) or 1.0
@@ -416,8 +570,8 @@ def step_physics(x, y, vx, vy, planets, dt):
 
 def check_hit(x, y, planets, target, barriers=()):
     """'crash' | 'dock' | 'lost' | None - same rules as the web edition."""
-    for (px, py, r, _mu, _c, _label) in planets:
-        if (x - px) ** 2 + (y - py) ** 2 < (r + CRASH_PAD) ** 2:
+    for p in planets:
+        if planet_crashed(x, y, p):
             return "crash"
     if barriers and point_in_barriers(x, y, barriers):
         return "crash"
@@ -494,9 +648,15 @@ def _ed_on_planet(ed, gx, gy):
     """True when the point sits inside a planet's crash radius
     (radius + CRASH_PAD, the same rule check_hit uses): the pad
     and the dock both refuse such a spot, or the ship would crash
-    the instant it launched / could never dock there."""
+    the instant it launched / could never dock there. Shaped
+    planets test against the polygon itself."""
     for p in ed["planets"]:
-        if math.hypot(gx - p["x"], gy - p["y"]) < p["r"] + CRASH_PAD:
+        if p.get("shape"):
+            pts = shape_abs_points(p["x"], p["y"], p["shape"])
+            if point_in_polygon(gx, gy, pts) or \
+                    dist_to_poly(gx, gy, pts) < CRASH_PAD:
+                return True
+        elif math.hypot(gx - p["x"], gy - p["y"]) < p["r"] + CRASH_PAD:
             return True
     return False
 
@@ -708,6 +868,8 @@ def level_barriers(lv):
     out = []
     start = lv.get("start")
     target = lv.get("target")
+    start_xy = mover_xy(start) if start is not None else None
+    target_xy = mover_xy(target) if target is not None else None
     for b in lv.get("barriers", [])[:BARRIER_MAX]:
         if not isinstance(b, (list, tuple)):
             continue
@@ -718,9 +880,11 @@ def level_barriers(lv):
         pts = clean_poly(pts)
         if len(pts) < 3 or abs(polygon_area(pts)) < BARRIER_MIN_AREA:
             continue
-        if start is not None and point_in_polygon(start[0], start[1], pts):
+        if start_xy is not None and point_in_polygon(start_xy[0],
+                                                     start_xy[1], pts):
             continue
-        if target is not None and point_in_polygon(target[0], target[1], pts):
+        if target_xy is not None and point_in_polygon(target_xy[0],
+                                                      target_xy[1], pts):
             continue
         out.append(pts)
     return out
@@ -760,10 +924,157 @@ def path_position(pts, speed, phase, t, loop=False):
     return float(pts[-1][0]), float(pts[-1][1])
 
 
+# ----------------------------------------------------------------------
+# MOVING START / DOCK - the pad and the station can ride an orbit or
+# a patrol path, just like a planet. A mover spec is a dict with
+# "x", "y" plus an optional "orbit" or "path" (the same shapes a
+# planet uses); a plain (x, y) tuple is a static mover. They run on
+# the mission clock, so the pad is somewhere else every second and
+# the launch point moves with it.
+# ----------------------------------------------------------------------
+def normalize_mover(value):
+    """A start/target as a mover dict. A plain (x, y) tuple becomes
+    a static mover."""
+    if isinstance(value, dict):
+        mv = {"x": float(value.get("x", 0.0)),
+              "y": float(value.get("y", 0.0))}
+        if value.get("orbit"):
+            mv["orbit"] = dict(value["orbit"])
+        if value.get("path"):
+            mv["path"] = {"pts": [list(q) for q in value["path"]["pts"]],
+                          "speed": value["path"].get("speed", 60.0),
+                          "phase": value["path"].get("phase", 0.0),
+                          "loop": value["path"].get("loop") is True}
+        return mv
+    return {"x": float(value[0]), "y": float(value[1])}
+
+
+def mover_at(spec, t):
+    """Position of a start/target mover at mission time t. A static
+    mover never moves; an orbit/path mover rides its route on the
+    same clock as the planets."""
+    if isinstance(spec, dict):
+        if spec.get("path"):
+            return path_position(spec["path"]["pts"],
+                                 spec["path"].get("speed", 60.0),
+                                 spec["path"].get("phase", 0.0), t,
+                                 loop=bool(spec["path"].get("loop")))
+        if spec.get("orbit"):
+            orb = spec["orbit"]
+            ang = orb["phase"] + orb["speed"] * t
+            return (orb["cx"] + math.cos(ang) * orb["radius"],
+                    orb["cy"] + math.sin(ang) * orb["radius"])
+        return (spec["x"], spec["y"])
+    return (float(spec[0]), float(spec[1]))
+
+
+def mover_xy(spec):
+    """Static (t=0) position of a mover spec."""
+    return mover_at(spec, 0.0)
+
+
+def _mover_out(mv):
+    """An editor mover as a level start/target: a plain (x, y) tuple
+    when static, a dict with its orbit/path when it moves."""
+    if mv.get("orbit") or mv.get("path"):
+        out = {"x": mv["x"], "y": mv["y"]}
+        if mv.get("orbit"):
+            out["orbit"] = dict(mv["orbit"])
+        if mv.get("path"):
+            out["path"] = {"pts": [list(pt) for pt in mv["path"]["pts"]],
+                           "speed": mv["path"].get("speed", 60.0),
+                           "phase": mv["path"].get("phase", 0.0),
+                           "loop": mv["path"].get("loop") is True}
+        return out
+    return (mv["x"], mv["y"])
+
+
+# ----------------------------------------------------------------------
+# CUSTOM-SHAPED PLANETS - a planet can be a polygon instead of a
+# circle. The shape is stored as offsets from the planet's center,
+# so it rides orbits and paths with the center. Gravity still pulls
+# from the center (mu = GRAV_K * bounding_radius^2); the crash zone
+# is the polygon itself (inside it, or within CRASH_PAD of an edge).
+# ----------------------------------------------------------------------
+def shape_abs_points(cx, cy, offsets):
+    """Absolute polygon points of a shaped planet at (cx, cy)."""
+    return [[cx + dx, cy + dy] for (dx, dy) in offsets]
+
+
+def _scaled_poly(pts, cx, cy, factor):
+    """Polygon points scaled about (cx, cy) - the repulsor ring and
+    gravity well of a shaped planet."""
+    return [[cx + (qx - cx) * factor, cy + (qy - cy) * factor]
+            for (qx, qy) in pts]
+
+
+def dist_to_poly(x, y, pts):
+    """Distance from a point to a polygon: 0 inside, else the distance
+    to the nearest edge."""
+    if point_in_polygon(x, y, pts):
+        return 0.0
+    best = 1e18
+    n = len(pts)
+    for i in range(n):
+        ax, ay = pts[i]
+        bx, by = pts[(i + 1) % n]
+        best = min(best, _seg_point_dist(ax, ay, bx, by, x, y))
+    return best
+
+
+def planet_surface_dist(x, y, planet):
+    """Distance from (x, y) to a planet's surface: circles measure
+    from the center minus the radius; shaped planets measure to the
+    nearest edge of the polygon (0 inside)."""
+    shape = planet[6] if len(planet) > 6 else None
+    if shape:
+        return dist_to_poly(x, y, shape)
+    return math.hypot(x - planet[0], y - planet[1]) - planet[2]
+
+
+def planet_crashed(x, y, planet):
+    """True when the ship is inside a planet's crash zone."""
+    shape = planet[6] if len(planet) > 6 else None
+    if shape:
+        if point_in_polygon(x, y, shape):
+            return True
+        return dist_to_poly(x, y, shape) < CRASH_PAD
+    px, py, r = planet[0], planet[1], planet[2]
+    return (x - px) ** 2 + (y - py) ** 2 < (r + CRASH_PAD) ** 2
+
+
+def _norm_shape(raw):
+    """Validate a custom planet shape: 3-12 offset points, each
+    within +/-70 px of the center, a simple polygon with real area.
+    Returns the cleaned offsets, or None when it is not a shape."""
+    if not isinstance(raw, (list, tuple)):
+        return None
+    pts = []
+    for q in raw[:SHAPE_MAX_PTS]:
+        if not (isinstance(q, (list, tuple)) and len(q) == 2):
+            return None
+        try:
+            dx, dy = float(q[0]), float(q[1])
+        except (TypeError, ValueError):
+            return None
+        if not (math.isfinite(dx) and math.isfinite(dy)):
+            return None
+        pts.append([max(-70.0, min(70.0, dx)),
+                    max(-70.0, min(70.0, dy))])
+    pts = clean_poly(pts)
+    if len(pts) < 3 or abs(polygon_area(pts)) < SHAPE_MIN_AREA:
+        return None
+    if not polygon_is_simple(pts):
+        return None
+    return pts
+
+
 def planet_snapshot(specs, t):
-    """Planet tuples (x, y, r, mu, color, label) at mission time t.
-    Specs are dicts; a spec with an 'orbit' moves on its circle, a
-    spec with a 'path' patrols its polyline (path wins if both)."""
+    """Planet tuples (x, y, r, mu, color, label, shape) at mission
+    time t. Specs are dicts; a spec with an 'orbit' moves on its
+    circle, a spec with a 'path' patrols its polyline (path wins if
+    both). `shape` is the polygon's absolute points for a
+    custom-shaped planet, else None."""
     out = []
     for sp in specs:
         if sp.get("path"):
@@ -782,7 +1093,10 @@ def planet_snapshot(specs, t):
         mu = GRAV_K * r * r
         if sp.get("repel"):
             mu = -mu   # repulsor: same strength, pushes instead of pulls
-        out.append((px, py, r, mu, sp["color"], sp["label"]))
+        shape = None
+        if sp.get("shape"):
+            shape = shape_abs_points(px, py, sp["shape"])
+        out.append((px, py, r, mu, sp["color"], sp["label"], shape))
     return out
 
 
@@ -826,7 +1140,7 @@ def predict_path(x, y, vx, vy, specs, target, t0=0.0, wormholes=(),
                 points.append(None)      # trail break at the jump
         if i % 3 == 0:
             points.append((x, y))
-        outcome = check_hit(x, y, planets, target, barriers)
+        outcome = check_hit(x, y, planets, mover_at(target, t), barriers)
         if outcome:
             points.append((x, y))
             return points, outcome
@@ -849,6 +1163,14 @@ def level_specs(lv):
                               "loop": p["path"].get("loop") is True}
             if p.get("repel"):
                 sp["repel"] = True
+            if p.get("shape"):
+                shape = _norm_shape(p["shape"])
+                if shape is not None:
+                    sp["shape"] = shape
+                    # the bounding radius is the shape: gravity and
+                    # the crash zone both follow it
+                    sp["r"] = max(12.0, min(70.0, max(
+                        math.hypot(dx, dy) for dx, dy in shape)))
         else:
             px, py, r, _mu, color, label = p
             sp = {"x": px, "y": py, "r": r, "color": color, "label": label}
@@ -869,19 +1191,35 @@ def level_wormholes(lv):
 LEVEL_CODE_PREFIX = "ORBITAL1:"
 
 
+def _mover_to_code(value):
+    """A start/target for a share code: a plain [x, y] when static,
+    a dict with its orbit/path when it moves."""
+    mv = normalize_mover(value)
+    if mv.get("orbit") or mv.get("path"):
+        out = {"x": mv["x"], "y": mv["y"]}
+        if mv.get("orbit"):
+            out["orbit"] = mv["orbit"]
+        if mv.get("path"):
+            out["path"] = mv["path"]
+        return out
+    return [mv["x"], mv["y"]]
+
+
 def level_to_code(lv):
     payload = {"name": str(lv["name"]), "sub": str(lv.get("sub", "")),
-               "start": [lv["start"][0], lv["start"][1]],
-               "target": [lv["target"][0], lv["target"][1]],
+               "start": _mover_to_code(lv["start"]),
+               "target": _mover_to_code(lv["target"]),
                "par": int(lv["par"]), "max_burns": int(lv["max_burns"]),
                "planets": [{"x": p["x"], "y": p["y"], "r": p["r"],
                             "color": p.get("color", "#3fa7ff"),
                             "label": p.get("label", ""),
                             **({"orbit": p["orbit"]} if "orbit" in p else {}),
                             **({"path": p["path"]} if "path" in p else {}),
-                            **({"repel": True} if p.get("repel") else {})}
+                            **({"repel": True} if p.get("repel") else {}),
+                            **({"shape": p["shape"]} if p.get("shape") else {})}
                            for p in level_specs(lv)],
                "cores": [[c[0], c[1]] for c in lv["cores"]],
+               "fuel": [[f[0], f[1]] for f in lv.get("fuel", [])],
                "wormholes": [list(w) for w in level_wormholes(lv)],
                "barriers": [[[q[0], q[1]] for q in poly]
                             for poly in level_barriers(lv)]}
@@ -906,6 +1244,56 @@ def _code_point(value, what):
         raise ValueError(f"{what} is malformed")
     return (_code_num(value[0], 0, WIDTH, what + " x"),
             _code_num(value[1], 0, HEIGHT, what + " y"))
+
+
+def _code_orbit(orb):
+    """A validated orbit dict, or None when it is not one."""
+    if not isinstance(orb, dict):
+        return None
+    return {
+        "cx": _code_num(orb.get("cx"), 0, WIDTH, "orbit cx"),
+        "cy": _code_num(orb.get("cy"), 0, HEIGHT, "orbit cy"),
+        "radius": _code_num(orb.get("radius"), 0, 400, "orbit radius"),
+        "speed": _code_num(orb.get("speed"), -2, 2, "orbit speed"),
+        "phase": _code_num(orb.get("phase"), -7, 7, "orbit phase")}
+
+
+def _code_path(pth):
+    """A validated path dict, or None when it is not one."""
+    if not isinstance(pth, dict) or not isinstance(pth.get("pts"), list) \
+            or not 2 <= len(pth["pts"]) <= 20:
+        return None
+    path = {
+        "pts": [[_code_num(q[0], 0, WIDTH, "path x"),
+                 _code_num(q[1], 0, HEIGHT, "path y")]
+                for q in pth["pts"]
+                if isinstance(q, (list, tuple)) and len(q) == 2],
+        "speed": _code_num(pth.get("speed", 60), 5, 300, "path speed"),
+        "phase": _code_num(pth.get("phase", 0), 0, 1, "path phase")}
+    if pth.get("loop") is True:
+        path["loop"] = True
+    if len(path["pts"]) < 2:
+        return None
+    return path
+
+
+def _code_mover(value, what):
+    """A start/target from a code: a plain [x, y] point, or a dict
+    with an orbit/path (a moving pad or dock). Returns a mover dict
+    when it moves, else a plain (x, y) tuple."""
+    if isinstance(value, dict):
+        mv = {"x": _code_num(value.get("x"), 0, WIDTH, what + " x"),
+              "y": _code_num(value.get("y"), 0, HEIGHT, what + " y")}
+        orb = _code_orbit(value.get("orbit"))
+        if orb is not None:
+            mv["orbit"] = orb
+        pth = _code_path(value.get("path"))
+        if pth is not None:
+            mv["path"] = pth
+        if "orbit" in mv or "path" in mv:
+            return mv
+        return (mv["x"], mv["y"])
+    return _code_point(value, what)
 
 
 def code_to_level(code):
@@ -933,8 +1321,8 @@ def code_to_level(code):
     name = str(data.get("name", "Shared mission"))[:60].strip() \
         or "Shared mission"
     sub = str(data.get("sub", ""))[:120]
-    start = _code_point(data.get("start"), "start")
-    target = _code_point(data.get("target"), "target")
+    start = _code_mover(data.get("start"), "start")
+    target = _code_mover(data.get("target"), "target")
     par = int(_code_num(data.get("par", 2), 1, 20, "par"))
     burns = int(_code_num(data.get("max_burns", 4), 2, 20, "max burns"))
     burns = max(par, burns)
@@ -954,33 +1342,22 @@ def code_to_level(code):
                   "label": str(p.get("label", ""))[:24]}
         if p.get("repel") is True:
             planet["repel"] = True
-        orb = p.get("orbit")
-        if isinstance(orb, dict):
-            planet["orbit"] = {
-                "cx": _code_num(orb.get("cx"), 0, WIDTH, "orbit cx"),
-                "cy": _code_num(orb.get("cy"), 0, HEIGHT, "orbit cy"),
-                "radius": _code_num(orb.get("radius"), 0, 400,
-                                    "orbit radius"),
-                "speed": _code_num(orb.get("speed"), -2, 2, "orbit speed"),
-                "phase": _code_num(orb.get("phase"), -7, 7, "orbit phase")}
-        pth = p.get("path")
-        if isinstance(pth, dict) and isinstance(pth.get("pts"), list) \
-                and 2 <= len(pth["pts"]) <= 20:
-            planet["path"] = {
-                "pts": [[_code_num(q[0], 0, WIDTH, "path x"),
-                         _code_num(q[1], 0, HEIGHT, "path y")]
-                        for q in pth["pts"]
-                        if isinstance(q, (list, tuple)) and len(q) == 2],
-                "speed": _code_num(pth.get("speed", 60), 5, 300,
-                                   "path speed"),
-                "phase": _code_num(pth.get("phase", 0), 0, 1, "path phase")}
-            if pth.get("loop") is True:
-                planet["path"]["loop"] = True
-            if len(planet["path"]["pts"]) < 2:
-                del planet["path"]
+        orb = _code_orbit(p.get("orbit"))
+        if orb is not None:
+            planet["orbit"] = orb
+        pth = _code_path(p.get("path"))
+        if pth is not None:
+            planet["path"] = pth
+        shape = _norm_shape(p.get("shape"))
+        if shape is not None:
+            planet["shape"] = shape
+            planet["r"] = max(12.0, min(70.0, max(
+                math.hypot(dx, dy) for dx, dy in shape)))
         planets.append(planet)
 
     cores = [_code_point(c, "core") for c in data.get("cores", [])[:24]]
+
+    fuel = [_code_point(f, "fuel") for f in data.get("fuel", [])[:FUEL_MAX]]
 
     wormholes = []
     for w in data.get("wormholes", [])[:8]:
@@ -1005,7 +1382,8 @@ def code_to_level(code):
 
     return {"name": name, "sub": sub, "start": start, "target": target,
             "par": par, "max_burns": burns, "planets": planets,
-            "cores": cores, "wormholes": wormholes, "barriers": barriers}
+            "cores": cores, "fuel": fuel,
+            "wormholes": wormholes, "barriers": barriers}
 
 
 # ----------------------------------------------------------------------
@@ -1059,6 +1437,43 @@ class Beeper:
 # ----------------------------------------------------------------------
 # GAME
 # ----------------------------------------------------------------------
+# The editor help text, shown in a window from the Help button -
+# it used to live as a permanent label under the editor bar, where
+# it ate a tall strip of the editor window on every level.
+EDITOR_HELP_TEXT = (
+    "Drag planets to move them - wheel over a planet "
+    "resizes it - wormholes go in pairs (A, then B). "
+    "Orbit tool: click a planet, then its center point; "
+    "wheel = orbit size, Shift+wheel = speed. "
+    "Shift+click a planet (Planet tool) toggles REPEL: "
+    "an orange dashed ring means it pushes instead of pulls. "
+    "Path tool: click a planet, then click waypoints to "
+    "build its route (2 points = a straight patrol line, "
+    "more = a custom path); click the planet again to "
+    "finish, wheel over a pathed planet = path speed. "
+    "Shift+click a pathed planet (Path tool) toggles LOOP: "
+    "it rides the route in a circle, back to the start, "
+    "like an orbit, instead of ping-ponging. "
+    "Orbit and Path also work on the PAD and the DOCK: "
+    "click one to arm it, then click its center or "
+    "waypoints - the pad and the dock can move too. "
+    "Shape tool: click corners to draw a custom-shaped "
+    "planet, then click the first corner again (or release "
+    "Shift) to close it - wheel over it scales the shape. "
+    "Fuel tool: click to place a fuel canister (+1 burn "
+    "when the probe flies through it), click one to remove it. "
+    "Barrier tool: drag a rectangle to make a solid wall "
+    "(the ship crashes into it), or hold Shift and click "
+    "to lay down polygon corners, then release Shift to "
+    "close the shape - a barrier needs 3 corners and a "
+    "real area, so a line makes nothing. "
+    "Del Bar tool works the same way but cuts barrier out "
+    "instead: drag a rectangle over part of a wall to cut "
+    "it away, or Shift+click a shape - cutting a smaller "
+    "shape out of the middle of a big one leaves a ring. "
+    "Double-click a planet to rename it.")
+
+
 class OrbitalGame:
     def __init__(self, root):
         self.root = root
@@ -1078,7 +1493,7 @@ class OrbitalGame:
         # pager arrows, spinboxes, the name entry) uses TkDefaultFont -
         # size it from the window scale too, so at 1.5x ALL the text
         # grows, not just the headings.
-        tkfont.nametofont("TkDefaultFont").configure(size=self.BS(10))
+        tkfont.nametofont("TkDefaultFont").configure(size=self.FS(10))
         self.mode = "play"           # play | editor
         self.editor = None
         self.session_levels = []     # generated missions (not persisted)
@@ -1139,7 +1554,7 @@ class OrbitalGame:
                        bg="#0b1020", fg=COLORS["text"], takefocus=0,
                        selectcolor="#16213c", activebackground="#0b1020",
                        activeforeground=COLORS["text"],
-                       font=("Consolas", self.BS(10)),
+                       font=("Consolas", self.FS(10)),
                        command=self._preview_toggled).pack(side="left",
                                                            padx=(12, 0))
         self.sound_var = tk.BooleanVar(value=bool(settings["sound"]))
@@ -1147,7 +1562,7 @@ class OrbitalGame:
                        bg="#0b1020", fg=COLORS["text"], takefocus=0,
                        selectcolor="#16213c", activebackground="#0b1020",
                        activeforeground=COLORS["text"],
-                       font=("Consolas", self.BS(10)),
+                       font=("Consolas", self.FS(10)),
                        command=self._sound_toggled).pack(side="left")
         self.beeper.enabled = self.sound_var.get()
         self.pause_btn = tk.Button(row, text="Pause (H)", command=self.toggle_pause,
@@ -1159,18 +1574,27 @@ class OrbitalGame:
         # buttons + level pager
         bar = tk.Frame(root, bg="#0b1020")
         bar.pack(fill="x")
+        # Big text grows the buttons past the window, so the second
+        # half of the bar gets its own row. At 1x text the bar is
+        # exactly as before.
+        bar2 = None
+        if self.T > 1.0:
+            bar2 = tk.Frame(root, bg="#0b1020")
+            bar2.pack(fill="x")
         self.bar_btns = {}
-        for text, cmd in (("Launch (Space)", self.space_action),
-                          ("Reset (R)", self.reset),
-                          ("Undo (U)", self.undo),
-                          ("Random", self.new_random_level),
-                          ("Editor", self.enter_editor),
-                          ("Share level", self.share_level),
-                          ("Paste level", self.paste_level_dialog),
-                          ("Delete level", self.delete_saved_level),
-                          ("My levels", self.my_levels_dialog),
-                          ("Clear ghost", self.clear_ghost)):
-            btn = tk.Button(bar, text=text, command=cmd, bg="#16213c",
+        for i, (text, cmd) in enumerate(
+                (("Launch (Space)", self.space_action),
+                 ("Reset (R)", self.reset),
+                 ("Undo (U)", self.undo),
+                 ("Random", self.new_random_level),
+                 ("Editor", self.enter_editor),
+                 ("Share level", self.share_level),
+                 ("Paste level", self.paste_level_dialog),
+                 ("Delete level", self.delete_saved_level),
+                 ("My levels", self.my_levels_dialog),
+                 ("Clear ghost", self.clear_ghost))):
+            parent = bar2 if bar2 is not None and i >= 5 else bar
+            btn = tk.Button(parent, text=text, command=cmd, bg="#16213c",
                             fg=COLORS["text"], activebackground="#22335c",
                             relief="flat", padx=10, pady=4, takefocus=0)
             btn.pack(side="left", padx=4, pady=4)
@@ -1179,11 +1603,12 @@ class OrbitalGame:
         # ghost is drawn. Saved ghosts are kept, so turning it back on
         # brings them back.
         self.ghosts_var = tk.BooleanVar(value=bool(settings["ghosts"]))
-        tk.Checkbutton(bar, text="Ghosts", variable=self.ghosts_var,
+        tk.Checkbutton(bar2 if bar2 is not None else bar,
+                       text="Ghosts", variable=self.ghosts_var,
                        bg="#0b1020", fg=COLORS["text"], takefocus=0,
                        selectcolor="#16213c", activebackground="#0b1020",
                        activeforeground=COLORS["text"],
-                       font=("Consolas", self.BS(10)),
+                       font=("Consolas", self.FS(10)),
                        command=self._ghosts_toggled).pack(side="left",
                                                           padx=(6, 0), pady=4)
         # Window and text scales live in their own row, kept separate:
@@ -1235,9 +1660,17 @@ class OrbitalGame:
                            fg=COLORS["text"], takefocus=0,
                            selectcolor="#16213c", activebackground="#0b1020",
                            activeforeground=COLORS["text"],
-                           font=("Consolas", self.BS(10)),
+                           font=("Consolas", self.FS(10)),
                            command=lambda k=key: self._opt_toggled(k)
                            ).pack(side="left", padx=(8, 2))
+        # Rewards: the orbytes shop (probe colors) and achievements.
+        self.rewards_btn = tk.Button(orow, text="Rewards",
+                                     command=self.rewards_dialog,
+                                     bg="#16213c", fg=COLORS["text"],
+                                     takefocus=0,
+                                     activebackground="#22335c",
+                                     relief="flat", padx=10, pady=2)
+        self.rewards_btn.pack(side="right", padx=8)
         pager = tk.Frame(root, bg="#0b1020")
         pager.pack(fill="x")
         pf = tk.Frame(pager, bg="#0b1020")
@@ -1259,14 +1692,19 @@ class OrbitalGame:
                                     pady=4)
         self.pager_next.pack(side="left", padx=4, pady=4)
 
-        # Editor bar is control chrome like the button bar, so its
-        # fonts use BS() (window scale only) - FS() text here would
-        # push the bar wider than the field at big text sizes.
+        # The editor bar is the widest row in the game (951 of 960 px
+        # at 1x text): at bigger text the tools no longer fit in one
+        # row, so the name/par/burns fields and action buttons move
+        # to a second row. At 1x text it is exactly as before.
         self.ed_bar = tk.Frame(root, bg="#0b1020")
+        self.ed_bar2 = tk.Frame(root, bg="#0b1020") \
+            if self.T > 1.0 else None
         self.ed_tool = tk.StringVar(value="planet")
         self.ed_tool.trace_add("write", self._ed_tool_changed)
-        for text, tool in (("Planet", "planet"), ("Start", "start"),
+        for text, tool in (("Planet", "planet"), ("Shape", "shape"),
+                           ("Start", "start"),
                            ("Dock", "target"), ("Core", "core"),
+                           ("Fuel", "fuel"),
                            ("Wormhole", "wormhole"), ("Orbit", "orbit"),
                            ("Path", "path"), ("Barrier", "barrier"),
                            ("Del Bar", "delbarrier"),
@@ -1276,52 +1714,60 @@ class OrbitalGame:
                            fg=COLORS["text"], takefocus=0,
                            selectcolor="#22335c", activebackground="#0b1020",
                            activeforeground=COLORS["text"],
-                           font=("Consolas", self.BS(10)),
+                           font=("Consolas", self.FS(10)),
                            indicatoron=False, padx=2, pady=3).pack(side="left", padx=1)
-        tk.Label(self.ed_bar, text="Name", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.BS(10))).pack(side="left", padx=(4, 2))
-        self.ed_name = tk.Entry(self.ed_bar, width=8, bg="#16213c",
+        # second row when the text is big, same row as the tools at 1x
+        ed_parent = self.ed_bar2 if self.ed_bar2 is not None \
+            else self.ed_bar
+        tk.Label(ed_parent, text="Name", bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10))).pack(side="left", padx=(4, 2))
+        self.ed_name = tk.Entry(ed_parent, width=8, bg="#16213c",
                                 fg=COLORS["text"], insertbackground="#dbe7ff",
-                                relief="flat", font=("Consolas", self.BS(10)))
+                                relief="flat", font=("Consolas", self.FS(10)))
         self.ed_name.pack(side="left")
-        tk.Label(self.ed_bar, text="Par", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.BS(10))).pack(side="left", padx=(2, 2))
-        self.ed_par = tk.Spinbox(self.ed_bar, from_=1, to=20, width=3,
+        tk.Label(ed_parent, text="Par", bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10))).pack(side="left", padx=(2, 2))
+        self.ed_par = tk.Spinbox(ed_parent, from_=1, to=20, width=3,
                                  bg="#16213c", fg=COLORS["text"],
-                                 relief="flat", font=("Consolas", self.BS(10)))
+                                 relief="flat", font=("Consolas", self.FS(10)))
         self.ed_par.pack(side="left")
-        tk.Label(self.ed_bar, text="Burns", bg="#0b1020", fg=COLORS["dim"],
-                 font=("Consolas", self.BS(10))).pack(side="left", padx=(2, 2))
-        self.ed_burns = tk.Spinbox(self.ed_bar, from_=2, to=20, width=3,
+        tk.Label(ed_parent, text="Burns", bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10))).pack(side="left", padx=(2, 2))
+        self.ed_burns = tk.Spinbox(ed_parent, from_=2, to=20, width=3,
                                    bg="#16213c", fg=COLORS["text"],
-                                   relief="flat", font=("Consolas", self.BS(10)))
+                                   relief="flat", font=("Consolas", self.FS(10)))
         self.ed_burns.pack(side="left")
-        for text, cmd in (("Playtest", self.editor_playtest),
-                          ("Save level", self.editor_save),
+        for text, cmd in (("Play", self.editor_playtest),
+                          ("Save", self.editor_save),
                           ("Clear", self.editor_clear),
                           ("Rename", self.rename_planet),
-                          ("Exit editor", self.exit_editor)):
-            btn = tk.Button(self.ed_bar, text=text, command=cmd,
+                          ("Exit", self.exit_editor)):
+            btn = tk.Button(ed_parent, text=text, command=cmd,
                             bg="#16213c", fg=COLORS["text"],
                             activebackground="#22335c", relief="flat",
                             padx=5, pady=3, takefocus=0)
             btn.pack(side="left", padx=2)
             if text == "Rename":
                 self.ed_rename_btn = btn
-        self.ed_hint = tk.Label(root, bg="#0b1020", fg=COLORS["dim"],
-                                anchor="w", font=("Consolas", self.FS(10)),
-                                justify="left",
-                                wraplength=int(950 * self.S))
         self.ed_sub_row = tk.Frame(root, bg="#0b1020")
         tk.Label(self.ed_sub_row, text="Description:", bg="#0b1020",
                  fg=COLORS["dim"],
-                 font=("Consolas", self.BS(10))).pack(side="left",
+                 font=("Consolas", self.FS(10))).pack(side="left",
                                                       padx=(2, 4))
         self.ed_sub = tk.Entry(self.ed_sub_row, bg="#16213c",
                                fg=COLORS["text"],
                                insertbackground="#dbe7ff", relief="flat",
-                               font=("Consolas", self.BS(10)))
+                               font=("Consolas", self.FS(10)))
         self.ed_sub.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        # The editor help lives behind this button now: the old
+        # permanent hint label ate a tall strip of the editor window.
+        self.ed_help_btn = tk.Button(
+            self.ed_sub_row, text="Help",
+            command=self.editor_help_dialog, bg="#16213c",
+            fg=COLORS["text"], activebackground="#22335c",
+            relief="flat", padx=5, pady=3, takefocus=0,
+            font=("Consolas", self.FS(10)))
+        self.ed_help_btn.pack(side="right", padx=(0, 4))
 
         # result overlay (hidden until a run ends)
         self.overlay = tk.Frame(root, bg="#101a30", bd=2, relief="ridge")
@@ -1391,16 +1837,13 @@ class OrbitalGame:
 
     # ---------------- scale helpers ----------------
     def FS(self, pts):
-        """Game-text size: window scale times text scale. Control
-        chrome (buttons, checkboxes) uses BS() instead, so the fixed
-        layout never widens when the text grows."""
+        """Text size: window scale times text scale. Every font in the
+        game uses this - game text and button/chrome text alike - so
+        the Text setting grows all of it. The two bars that already
+        fill the window at 1x (the main button bar and the editor
+        bar) split into two rows when the text is bigger than 1x,
+        so the layout still fits."""
         return max(8, int(round(pts * self.S * self.T)))
-
-    def BS(self, pts):
-        """Button/chrome text size: window scale only. The button bar
-        already fills the window at 1x, so letting its text grow with
-        the text scale would push the window wider."""
-        return max(8, int(round(pts * self.S)))
 
     def X(self, v):
         return v * self.S
@@ -1465,11 +1908,13 @@ class OrbitalGame:
         self._rebuild_ui()
 
     def apply_text_scale(self, text_scale):
-        """Change the text scale: game text grows (HUD, mission text,
-        canvas labels), the field and the window stay the same size.
-        Buttons and checkboxes keep window-scale sizing (BS()) so the
-        fixed layout never widens. Same rebuild as a window-scale
-        change, since every font size comes from FS()/BS()."""
+        """Change the text scale: every font in the game grows
+        (HUD, mission text, canvas labels, buttons and checkboxes),
+        the field and the window stay the same size. The two bars
+        that already fill the window at 1x split into two rows when
+        the text is bigger than 1x, so the layout still fits. Same
+        rebuild as a window-scale change, since every font size
+        comes from FS()."""
         if text_scale == self.T or text_scale not in TEXT_SCALES:
             return
         self.save["settings"]["text_scale"] = text_scale
@@ -1480,6 +1925,9 @@ class OrbitalGame:
     def load_save(self):
         fresh = {"unlocked": 0, "stars": {}, "cores": {}, "flybys": {},
                  "ghost": {}, "custom": [], "recent_codes": [],
+                 "campaign_len": len(LEVELS), "times": {},
+                 "orbytes": 0, "colors": [],
+                 "probe_color": COLORS["probe"], "achievements": {},
                  "settings": {"sound": True, "preview": True,
                               "ghosts": True, "scale": 1.0,
                               "text_scale": 1.0, "orbit_paths": True,
@@ -1505,6 +1953,15 @@ class OrbitalGame:
                 out["cores"] = dict(data.get("cores", {}))
             if data.get("v") == 4:
                 out["flybys"] = dict(data.get("flybys", {}))
+                times = {}
+                for k, v in data.get("times", {}).items():
+                    try:
+                        fv = float(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if fv >= 0:
+                        times[str(k)] = round(fv, 2)
+                out["times"] = times
                 # Ghost entries are drawn from directly, so keep only
                 # well-formed ones: a dict whose segments are lists of
                 # [x, y] number pairs. Old saves stored one flat "pts"
@@ -1554,6 +2011,34 @@ class OrbitalGame:
                             and isinstance(lv.get("cores"), list):
                         custom.append(lv)
                 out["custom"] = custom
+                # Campaign growth shifts custom records: records are
+                # keyed by global index and customs sit after the
+                # campaign, so when a version adds missions the old
+                # custom keys point at new campaign missions
+                # instead. The save now stamps the campaign length
+                # it was written with, so shift every key at or past
+                # it by the growth. Saves written before the stamp
+                # carry no length and cannot be remapped - they keep
+                # the old keys.
+                try:
+                    old_len = int(data.get("campaign_len", 0))
+                except (TypeError, ValueError):
+                    old_len = 0
+                if 0 < old_len < len(LEVELS):
+                    delta = len(LEVELS) - old_len
+                    for field in ("stars", "cores", "flybys", "ghost",
+                                  "times"):
+                        shifted = {}
+                        for k, v in out[field].items():
+                            try:
+                                ki = int(k)
+                            except (TypeError, ValueError):
+                                continue
+                            if ki >= old_len:
+                                ki += delta
+                            shifted[str(ki)] = v
+                        out[field] = shifted
+                out["campaign_len"] = len(LEVELS)
                 # Recently pasted / imported level codes, newest first.
                 out["recent_codes"] = [
                     str(c) for c in data.get("recent_codes", [])
@@ -1568,7 +2053,8 @@ class OrbitalGame:
                 # level actually has, so "5/0 cores" can never show.
                 last = len(LEVELS) + len(out["custom"])
                 levels = LEVELS + out["custom"]
-                for field in ("stars", "cores", "flybys", "ghost"):
+                for field in ("stars", "cores", "flybys", "ghost",
+                              "times"):
                     kept = {}
                     for k, v in out[field].items():
                         try:
@@ -1585,6 +2071,24 @@ class OrbitalGame:
                             out["cores"][k] = total
                     except (TypeError, ValueError, IndexError):
                         continue
+                # Orbytes, probe colors and achievements: earned and
+                # bought in play, so keep only well-formed values.
+                try:
+                    out["orbytes"] = max(0, int(data.get("orbytes", 0)))
+                except (TypeError, ValueError):
+                    out["orbytes"] = 0
+                out["colors"] = [c for c in data.get("colors", [])
+                                 if isinstance(c, str)
+                                 and c in PROBE_COLOR_HEX]
+                valid_probe = set(PROBE_COLOR_HEX.values()) \
+                    | {COLORS["probe"]}
+                pc = str(data.get("probe_color", COLORS["probe"]))
+                out["probe_color"] = pc if pc in valid_probe \
+                    else COLORS["probe"]
+                out["achievements"] = {
+                    k: True
+                    for k, v in data.get("achievements", {}).items()
+                    if k in ACHIEVEMENT_TITLES and v}
                 st = data.get("settings", {})
                 if not isinstance(st, dict):
                     st = {}
@@ -1642,6 +2146,19 @@ class OrbitalGame:
             return True
         return False
 
+    def record_time(self):
+        """Keep the fastest completion time for this mission, from
+        docked runs only. The time is the winning flight's own
+        duration (launch to dock - aiming and pauses don't count).
+        Returns True when this run set a new best; a first finish
+        always counts."""
+        key = str(self.level_i)
+        best = self.save["times"].get(key)
+        if best is None or self.flight_time < float(best):
+            self.save["times"][key] = round(self.flight_time, 2)
+            return True
+        return False
+
     def record_ghost(self, stars):
         """Keep the flight path of the best run as a faint ghost line.
         A run replaces the ghost when it earns more stars, or the same
@@ -1679,6 +2196,14 @@ class OrbitalGame:
         cores_all = sum(len(lv["cores"]) for lv in LEVELS)
         return stars, 3 * len(LEVELS), cores, cores_all
 
+    def campaign_done(self):
+        """True when every default mission has been docked at least
+        once - the same bar as the Campaign Complete achievement.
+        My levels (and the editor behind it) stays locked until then."""
+        stars = self.save.get("stars", {})
+        return all(int(stars.get(str(i), 0)) >= 1
+                   for i in range(len(LEVELS)))
+
     # ---------------- level state ----------------
     def load_level(self, idx):
         levels = self.all_levels()
@@ -1690,9 +2215,18 @@ class OrbitalGame:
         self.barriers = level_barriers(lv)
         self.clock = 0.0
         self.planets = planet_snapshot(self.specs, 0.0)
-        self.sx, self.sy = lv["start"]
-        self.tx, self.ty = lv["target"]
+        # The pad and the dock can move (orbit/path): their positions
+        # follow the mission clock, and the probe rides the pad while
+        # aiming, so the launch point is wherever the pad is now.
+        self.start_spec = normalize_mover(lv["start"])
+        self.target_spec = normalize_mover(lv["target"])
+        self.sx, self.sy = mover_at(self.start_spec, 0.0)
+        self.tx, self.ty = mover_at(self.target_spec, 0.0)
         self.cores = [(cx, cy, False) for (cx, cy) in lv["cores"]]
+        self.fuel = [(fx, fy, False)
+                     for (fx, fy) in lv.get("fuel", [])]
+        # Fuel canisters raise the burn budget for this run only.
+        self.burns_cap = int(lv["max_burns"])
         self.burns_used = 0
         self.flight_time = 0.0
         self.state = "aim"           # aim | fly | won | ended
@@ -1828,6 +2362,8 @@ class OrbitalGame:
             "vx": self.vx, "vy": self.vy, "burns": self.burns_used,
             "time": self.flight_time, "clock": self.clock,
             "cores": tuple(g for (_x, _y, g) in self.cores),
+            "fuel": tuple(g for (_x, _y, g) in self.fuel),
+            "cap": self.burns_cap,
             "trail": list(self.trail), "flyby": list(self.flyby_min),
             "flagged": set(self.flyby_flagged), "wh_cd": self.wh_cd,
             "wh_pair": self.wh_pair,
@@ -1852,8 +2388,13 @@ class OrbitalGame:
         self.flight_time = snap["time"]
         self.clock = snap["clock"]
         self.planets = planet_snapshot(self.specs, self.clock)
+        self.sx, self.sy = mover_at(self.start_spec, self.clock)
+        self.tx, self.ty = mover_at(self.target_spec, self.clock)
         self.cores = [(cx, cy, got)
                       for (cx, cy, _g), got in zip(self.cores, snap["cores"])]
+        self.fuel = [(fx, fy, got)
+                     for (fx, fy, _g), got in zip(self.fuel, snap["fuel"])]
+        self.burns_cap = snap["cap"]
         self.trail = snap["trail"]
         self.flyby_min = snap["flyby"]
         self.flyby_flagged = snap["flagged"]
@@ -1900,7 +2441,7 @@ class OrbitalGame:
             self.angle_deg = angle
             self.power = power
             self.has_aim = True
-        elif self.state == "fly" and self.burns_used < self.lv["max_burns"]:
+        elif self.state == "fly" and self.burns_used < self.burns_cap:
             # The sliders aim correction burns too: angle = direction,
             # power scales the burn strength up to the drag cap. Stored
             # as a burn-aim point so the preview and SPACE work as usual.
@@ -1955,7 +2496,7 @@ class OrbitalGame:
             self.drag = (gx, gy)
             self.aim_from_point(gx, gy)
         elif self.state == "fly":
-            if self.burns_used >= self.lv["max_burns"]:
+            if self.burns_used >= self.burns_cap:
                 self.message = ("No burns left - this flight is ballistic "
                                 "now. Ride it out or reset.")
                 return
@@ -2044,7 +2585,7 @@ class OrbitalGame:
         return dx * BURN_SCALE, dy * BURN_SCALE
 
     def fire_burn(self, mx, my):
-        if self.burns_used >= self.lv["max_burns"]:
+        if self.burns_used >= self.burns_cap:
             self.message = "No burns left!"
             return
         dvx, dvy = self.burn_dv(mx, my)
@@ -2055,7 +2596,7 @@ class OrbitalGame:
         self.vx += dvx
         self.vy += dvy
         self.burns_used += 1
-        left = self.lv["max_burns"] - self.burns_used
+        left = self.burns_cap - self.burns_used
         self.message = f"Burn #{self.burns_used} fired. {left} left."
         self.beeper.burn()
         self.sync_ui()
@@ -2106,6 +2647,12 @@ class OrbitalGame:
         if running and not (self.state == "fly" and aiming_burn):
             self.clock += dt_frame
             self.planets = planet_snapshot(self.specs, self.clock)
+            # the pad and the dock ride the same clock as the planets
+            self.sx, self.sy = mover_at(self.start_spec, self.clock)
+            self.tx, self.ty = mover_at(self.target_spec, self.clock)
+            if self.state == "aim":
+                # the probe sits on the pad: a moving pad carries it
+                self.x, self.y = self.sx, self.sy
         if self.state == "fly" and not aiming_burn and not self.paused:
             self.flight_time += dt_frame
             for _ in range(2):
@@ -2158,8 +2705,8 @@ class OrbitalGame:
             self._twinkle_dirty = True
 
     def check_events(self):
-        for i, (px, py, r, _mu, _c, _lab) in enumerate(self.planets):
-            d = math.hypot(self.x - px, self.y - py) - r
+        for i, p in enumerate(self.planets):
+            d = planet_surface_dist(self.x, self.y, p)
             if d < self.flyby_min[i]:
                 self.flyby_min[i] = d
             if d <= FLYBY_RANGE and i not in self.flyby_flagged \
@@ -2171,9 +2718,9 @@ class OrbitalGame:
                             self.barriers)
         if outcome == "crash":
             label = ""
-            for i, (px, py, r, _mu, _c, lab) in enumerate(self.planets):
-                if (self.x - px) ** 2 + (self.y - py) ** 2 < (r + CRASH_PAD) ** 2:
-                    label = lab
+            for i, p in enumerate(self.planets):
+                if planet_crashed(self.x, self.y, p):
+                    label = p[5]
                     self.crash_idx = i
                     break
             if not label:
@@ -2194,6 +2741,17 @@ class OrbitalGame:
                 self.spawn_particles(cx, cy, "core", 8, speed=70.0,
                                      life=0.45)
                 self.beeper.core()
+        for i, (fx, fy, got) in enumerate(self.fuel):
+            if not got and (self.x - fx) ** 2 + (self.y - fy) ** 2 \
+                    <= FUEL_RADIUS ** 2:
+                # a fuel canister buys one more correction burn,
+                # for this run only - the budget resets on retry
+                self.fuel[i] = (fx, fy, True)
+                self.burns_cap += 1
+                self.spawn_particles(fx, fy, "core", 8, speed=70.0,
+                                     life=0.45)
+                self.beeper.core()
+                self.message = "Fuel canister! +1 burn."
 
     def count_flybys(self):
         n = sum(1 for m in self.flyby_min if m <= FLYBY_RANGE)
@@ -2232,8 +2790,18 @@ class OrbitalGame:
                 min(self.level_i + 1, len(LEVELS) - 1))
         new_core_best = self.record_cores() if persistent else False
         new_flyby_best = self.record_flybys() if persistent else False
+        new_time_best = self.record_time() if persistent else False
         if persistent:
             self.record_ghost(stars)
+        # Orbytes: campaign missions pay 10 per win, replays included -
+        # customs and Random/session levels pay nothing.
+        orbytes_earned = 0
+        if self.is_campaign():
+            self.save["orbytes"] = int(self.save.get("orbytes", 0)) \
+                + ORBYTES_PER_WIN
+            orbytes_earned = ORBYTES_PER_WIN
+        new_achievements = self.check_achievements() \
+            if self.is_campaign() else []
         self.store_save()
         self.beeper.win()
         got = sum(1 for (_x, _y, g) in self.cores if g)
@@ -2248,6 +2816,17 @@ class OrbitalGame:
             text += " New best cores for this mission!"
         if new_flyby_best and self.flybys_done:
             text += " New best flybys!"
+        if persistent:
+            best = self.save["times"].get(str(self.level_i))
+            if new_time_best:
+                text += " New best time!"
+            elif best is not None:
+                text += f" Best {float(best):.1f}s."
+        if orbytes_earned:
+            text += (f" +{orbytes_earned} orbytes "
+                     f"(total {self.save['orbytes']}).")
+        for _key, title in new_achievements:
+            text += f" Achievement unlocked: {title}!"
         total_stars, max_stars, total_cores, max_cores = \
             self.campaign_totals()
         if total_stars == max_stars and total_cores == max_cores:
@@ -2264,6 +2843,61 @@ class OrbitalGame:
         if self.save["settings"].get("auto_advance", False) and show_next:
             lvl = self.level_i
             self.root.after(1500, lambda: self._auto_advance(lvl))
+
+    def check_achievements(self):
+        """Unlock campaign achievements earned by this win. Returns
+        a list of (key, title) newly unlocked."""
+        got = self.save.setdefault("achievements", {})
+        new = []
+
+        def grant(key):
+            if key not in got:
+                got[key] = True
+                new.append((key, ACHIEVEMENT_TITLES[key]))
+
+        if self.burns_used < self.lv["par"]:
+            grant("under_par")
+        if self.flybys_done >= 3:
+            grant("triple_flyby")
+        stars = self.save["stars"]
+        for ch in range(5):
+            lo, hi = ch * 10, ch * 10 + 10
+            if all(int(stars.get(str(i), 0)) == 3
+                   for i in range(lo, hi)):
+                grant(f"chapter_{ch + 1}")
+        if all(int(stars.get(str(i), 0)) >= 1
+               for i in range(len(LEVELS))):
+            grant("campaign")
+        return new
+
+    def probe_color(self):
+        """The probe's current color: the bought color from the
+        shop, or the default gold."""
+        col = self.save.get("probe_color", COLORS["probe"])
+        if col in PROBE_COLOR_HEX.values() or col == COLORS["probe"]:
+            return col
+        return COLORS["probe"]
+
+    def _engine_shades(self):
+        """Particle shades for the probe's engine exhaust, in the
+        probe's current color (rebuilt only when it changes)."""
+        col = self.probe_color()
+        if getattr(self, "_engine_col", None) != col:
+            self._engine_col = col
+            self._engine_shades_cache = [
+                _blend(col, COLORS["bg"], f)
+                for f in (0.0, 0.35, 0.65, 0.88)]
+        return self._engine_shades_cache
+
+    def _apply_probe_color(self):
+        """Repaint the probe and the aim line after a shop change."""
+        col = self.probe_color()
+        try:
+            self.canvas.itemconfig(self.it_probe, fill=col)
+            self.canvas.itemconfig(self.it_aim, fill=col)
+        except Exception:
+            pass
+        self._engine_col = None
 
     def _auto_advance(self, level):
         """Jump to the next mission after a win, if the player is
@@ -2315,14 +2949,18 @@ class OrbitalGame:
         if lv["cores"]:
             core_best = int(self.save["cores"].get(str(self.level_i), 0))
             best_txt += f" · Best cores: {core_best}/{len(lv['cores'])}"
+        best_time = self.save.get("times", {}).get(str(self.level_i))
+        if best_time is not None:
+            best_txt += f" · Best time: {float(best_time):.1f}s"
         t_stars, t_max, t_cores, t_cmax = self.campaign_totals()
         self.hud1.config(
             text=f"Mission {self.level_i + 1} of {total}{best_txt} — "
                  f"{lv['name']}")
         self.hud2.config(text="  " + self.message)
-        left = lv["max_burns"] - self.burns_used
+        left = self.burns_cap - self.burns_used
         pips = "●" * self.burns_used + "○" * left
         got = sum(1 for (_x, _y, g) in self.cores if g)
+        fgot = sum(1 for (_x, _y, g) in self.fuel if g)
         speed = math.hypot(self.vx, self.vy) if self.state == "fly" else 0.0
         phase = {"aim": "Aiming", "fly": "In flight",
                  "won": "Docked", "ended": "Run ended"}[self.state]
@@ -2331,9 +2969,11 @@ class OrbitalGame:
         self.stats.config(text=(
             f"  Par {lv['par']}   Burns {pips} ({left} left)   "
             f"Cores {got}/{len(self.cores)}   "
+            f"{f'Fuel {fgot}/{len(self.fuel)}   ' if self.fuel else ''}"
             f"Flybys {self.count_flybys()}   "
             f"Time {self.flight_time:.1f}s   Speed {speed:.0f}   {phase}   "
-            f"·   Campaign ★{t_stars}/{t_max} · Cores {t_cores}/{t_cmax}"))
+            f"·   Campaign ★{t_stars}/{t_max} · Cores {t_cores}/{t_cmax}   "
+            f"·   Orbytes {int(self.save.get('orbytes', 0))}"))
         self.pager_label.config(
             text=f"Level {self.level_i + 1} — {lv['name']}")
         self.pager_prev.config(
@@ -2346,6 +2986,19 @@ class OrbitalGame:
             len(LEVELS) + len(self.save["custom"])
         self.bar_btns["Delete level"].config(
             state="normal" if is_saved_custom else "disabled")
+        # the editor is only for your own levels: on a campaign
+        # mission the button stays greyed out, so opening the
+        # editor can never silently turn a mission into a copy.
+        # Custom and session levels (a playtest, a Random mission)
+        # keep it, so a playtest can still return to the editor.
+        self.bar_btns["Editor"].config(
+            state="normal" if self.level_i >= len(LEVELS) else "disabled")
+        # My levels stays greyed out until the whole default
+        # campaign is docked - the campaign is the key to the
+        # workshop. sync_ui runs on every win, so the button
+        # lights up the moment the last mission is finished.
+        self.bar_btns["My levels"].config(
+            state="normal" if self.campaign_done() else "disabled")
         self.bar_btns["Clear ghost"].config(
             state="normal"
             if str(self.level_i) in self.save["ghost"] else "disabled")
@@ -2361,21 +3014,8 @@ class OrbitalGame:
         self._ghost_key = None
         self.ghost_items = []
         X = self.X
-        c.create_oval(X(self.sx - 12), X(self.sy - 12), X(self.sx + 12),
-                      X(self.sy + 12), outline=COLORS["dim"], width=2,
-                      tags="static")
-        c.create_text(X(self.sx), X(self.sy + 24), text="PAD",
-                      fill=COLORS["dim"], font=("Consolas", self.FS(9)),
-                      tags="static")
-        c.create_oval(X(self.tx - DOCK_RADIUS), X(self.ty - DOCK_RADIUS),
-                      X(self.tx + DOCK_RADIUS), X(self.ty + DOCK_RADIUS),
-                      outline=COLORS["station"], width=3, tags="static")
-        c.create_oval(X(self.tx - 5), X(self.ty - 5), X(self.tx + 5),
-                      X(self.ty + 5), fill=COLORS["station"], outline="",
-                      tags="static")
-        c.create_text(X(self.tx), X(self.ty + DOCK_RADIUS + 14), text="DOCK",
-                      fill=COLORS["station"], font=("Consolas", self.FS(9)),
-                      tags="static")
+        # The pad and the dock are drawn as dynamic items (they can
+        # move on orbits and paths now) - only barriers stay static.
         # Barriers are solid walls: a flat fill (no outline - an erased
         # barrier is several overlapping pieces, and outlines would
         # draw seams across its interior).
@@ -2430,7 +3070,8 @@ class OrbitalGame:
                 X(10), X(gy), text=str(gy), fill=COLORS["dim"],
                 font=("Consolas", self.FS(9)), state=grid_state))
         # orbit circles and patrol routes (setting) - static per level,
-        # drawn under the planets
+        # drawn under the planets. The pad and the dock get theirs too
+        # when they move.
         self.it_routes = []
         for sp in self.specs:
             if sp.get("orbit"):
@@ -2451,9 +3092,61 @@ class OrbitalGame:
                         *[X(v) for q in route for v in q],
                         fill="#3a5a8c", width=1, dash=(4, 4),
                         state=routes_state))
+        for mv in (self.start_spec, self.target_spec):
+            if mv.get("orbit"):
+                orb = mv["orbit"]
+                self.it_routes.append(c.create_oval(
+                    X(orb["cx"] - orb["radius"]),
+                    X(orb["cy"] - orb["radius"]),
+                    X(orb["cx"] + orb["radius"]),
+                    X(orb["cy"] + orb["radius"]),
+                    outline="#3a5a8c", width=1, dash=(4, 4),
+                    state=routes_state))
+            elif mv.get("path"):
+                pts = mv["path"]["pts"]
+                if len(pts) >= 2:
+                    route = pts + [pts[0]] if mv["path"].get("loop") \
+                        else pts
+                    self.it_routes.append(c.create_line(
+                        *[X(v) for q in route for v in q],
+                        fill="#3a5a8c", width=1, dash=(4, 4),
+                        state=routes_state))
+        # the pad and the dock (dynamic: they can move)
+        self.it_pad = {
+            "ring": c.create_oval(0, 0, 0, 0, outline=COLORS["dim"],
+                                  width=2),
+            "label": c.create_text(0, 0, text="PAD", fill=COLORS["dim"],
+                                   font=("Consolas", self.FS(9)))}
+        self.it_dock = {
+            "ring": c.create_oval(0, 0, 0, 0, outline=COLORS["station"],
+                                  width=3),
+            "dot": c.create_oval(0, 0, 0, 0, fill=COLORS["station"],
+                                 outline=""),
+            "label": c.create_text(0, 0, text="DOCK",
+                                   fill=COLORS["station"],
+                                   font=("Consolas", self.FS(9)))}
         self.it_planets = []
-        for (px, py, r, _mu, color, label) in self.planets:
-            if _mu < 0:   # repulsor: dashed orange push-ring, warm outline
+        for (px, py, r, _mu, color, label, shape) in self.planets:
+            if shape:
+                # a custom-shaped planet is a polygon; its gravity
+                # well is the same shape scaled up, like the ring
+                # around a round planet
+                well_pts = _scaled_poly(shape, px, py, 1.7)
+                if _mu < 0:   # repulsor: dashed orange push-ring
+                    well = c.create_polygon(
+                        *[X(v) for q in well_pts for v in q],
+                        outline="#ff9a3c", width=2, dash=(4, 3), fill="")
+                    body = c.create_polygon(
+                        *[X(v) for q in shape for v in q],
+                        fill=color, outline="#ffd9a8", width=1)
+                else:
+                    well = c.create_polygon(
+                        *[X(v) for q in well_pts for v in q],
+                        outline="#16294d", width=1, fill="")
+                    body = c.create_polygon(
+                        *[X(v) for q in shape for v in q],
+                        fill=color, outline="#cdd8ff", width=1)
+            elif _mu < 0:   # repulsor: dashed orange push-ring, warm outline
                 well = c.create_oval(X(px - r * 1.7), X(py - r * 1.7),
                                      X(px + r * 1.7), X(py + r * 1.7),
                                      outline="#ff9a3c", width=2, dash=(4, 3))
@@ -2490,9 +3183,17 @@ class OrbitalGame:
             self.it_worms.append(pair)
         self.it_trail = c.create_line(0, 0, 0, 0, fill=COLORS["trail"],
                                       width=2, state="hidden")
-        self.it_predict = c.create_line(0, 0, 0, 0, fill=COLORS["predict"],
-                                        width=2, dash=(2, 3), state="hidden")
-        self.it_aim = c.create_line(0, 0, 0, 0, fill=COLORS["probe"],
+        # the preview is one dashed line per segment, so a wormhole
+        # jump stays a gap instead of a streak - a single line could
+        # only show the longest segment, which is why the preview
+        # vanished past a wormhole. 8 pairs max, so 10 lines cover
+        # every warp the preview can make.
+        self.it_predicts = []
+        for _ in range(10):
+            self.it_predicts.append(c.create_line(
+                0, 0, 0, 0, fill=COLORS["predict"], width=2,
+                dash=(2, 3), state="hidden"))
+        self.it_aim = c.create_line(0, 0, 0, 0, fill=self.probe_color(),
                                     width=2, arrow="last", state="hidden")
         self.it_burn = c.create_line(0, 0, 0, 0, fill=COLORS["core"],
                                      width=2, arrow="last", state="hidden")
@@ -2501,13 +3202,22 @@ class OrbitalGame:
             self.it_cores.append(c.create_polygon(
                 X(cx), X(cy - 8), X(cx + 6), X(cy), X(cx), X(cy + 8),
                 X(cx - 6), X(cy), fill=COLORS["core"], outline=""))
+        # fuel canisters: amber squares (cores are teal diamonds)
+        self.it_fuel = []
+        for (fx, fy, _got) in self.fuel:
+            ring = c.create_rectangle(X(fx - 8), X(fy - 8), X(fx + 8),
+                                      X(fy + 8), outline="#ff9a3c", width=2)
+            dot = c.create_rectangle(X(fx - 3), X(fy - 3), X(fx + 3),
+                                     X(fy + 3), fill="#ff9a3c", outline="")
+            self.it_fuel.append((ring, dot))
         self.it_particles = []
         for _ in range(48):
             self.it_particles.append(c.create_oval(
                 0, 0, 0, 0, fill="", outline="", state="hidden"))
         self.it_probe = c.create_oval(X(self.x - 6), X(self.y - 6),
                                       X(self.x + 6), X(self.y + 6),
-                                      fill=COLORS["probe"], outline="#fff3c4")
+                                      fill=self.probe_color(),
+                                      outline="#fff3c4")
         self.it_crash = c.create_text(X(self.x), X(self.y), text="X",
                                       fill=COLORS["danger"],
                                       font=("Consolas", self.FS(20), "bold"),
@@ -2588,6 +3298,17 @@ class OrbitalGame:
         routes_on = self.save["settings"].get("orbit_paths", True)
         for item in self.it_routes:
             c.itemconfig(item, state="normal" if routes_on else "hidden")
+        # the pad and the dock move with the mission clock
+        c.coords(self.it_pad["ring"], X(self.sx - 12), X(self.sy - 12),
+                 X(self.sx + 12), X(self.sy + 12))
+        c.coords(self.it_pad["label"], X(self.sx), X(self.sy + 24))
+        c.coords(self.it_dock["ring"], X(self.tx - DOCK_RADIUS),
+                 X(self.ty - DOCK_RADIUS), X(self.tx + DOCK_RADIUS),
+                 X(self.ty + DOCK_RADIUS))
+        c.coords(self.it_dock["dot"], X(self.tx - 5), X(self.ty - 5),
+                 X(self.tx + 5), X(self.ty + 5))
+        c.coords(self.it_dock["label"], X(self.tx),
+                 X(self.ty + DOCK_RADIUS + 14))
         # ghost of the best run on this mission, one line per segment
         # so wormhole jumps stay gaps instead of streaks
         ghost = self.save["ghost"].get(str(self.level_i))
@@ -2598,12 +3319,19 @@ class OrbitalGame:
             self._draw_ghost([])
         # planets (they move on the orbiting levels)
         labels_on = self.save["settings"].get("labels", True)
-        for items, (px, py, r, _mu, _col, _lab) in zip(self.it_planets,
-                                                       self.planets):
-            c.coords(items["well"], X(px - r * 1.7), X(py - r * 1.7),
-                     X(px + r * 1.7), X(py + r * 1.7))
-            c.coords(items["body"], X(px - r), X(py - r), X(px + r),
-                     X(py + r))
+        for items, (px, py, r, _mu, _col, _lab, shape) in zip(self.it_planets,
+                                                              self.planets):
+            if shape:
+                well_pts = _scaled_poly(shape, px, py, 1.7)
+                c.coords(items["well"],
+                         *[X(v) for q in well_pts for v in q])
+                c.coords(items["body"],
+                         *[X(v) for q in shape for v in q])
+            else:
+                c.coords(items["well"], X(px - r * 1.7), X(py - r * 1.7),
+                         X(px + r * 1.7), X(py + r * 1.7))
+                c.coords(items["body"], X(px - r), X(py - r), X(px + r),
+                         X(py + r))
             c.coords(items["hi"], X(px - r * 0.35), X(py - r * 0.35),
                      X(px + r * 0.35), X(py + r * 0.35))
             c.coords(items["label"], X(px), X(py + r + 14))
@@ -2624,6 +3352,13 @@ class OrbitalGame:
                 self._hide(item)
             else:
                 self._show(item)
+        for (ring, dot), (_fx, _fy, got) in zip(self.it_fuel, self.fuel):
+            if got:
+                self._hide(ring)
+                self._hide(dot)
+            else:
+                self._show(ring)
+                self._show(dot)
         # Live trail: only the current stretch (after the last wormhole
         # jump) is drawn, so no streak crosses the field at a warp.
         # The full trail, jumps included, still goes to the ghost.
@@ -2644,7 +3379,7 @@ class OrbitalGame:
                                          self.y + vy * 0.35]))
             if self.preview_var.get():
                 pts, outcome = predict_path(
-                    self.x, self.y, vx, vy, self.specs, (self.tx, self.ty),
+                    self.x, self.y, vx, vy, self.specs, self.target_spec,
                     t0=self.clock, wormholes=self.wormholes,
                     wh_cd=self.wh_cd, wh_pair=self.wh_pair,
                     barriers=self.barriers)
@@ -2652,7 +3387,7 @@ class OrbitalGame:
         else:
             self._hide(self.it_aim)
 
-        if self.state == "fly" and self.burns_used < self.lv["max_burns"] and \
+        if self.state == "fly" and self.burns_used < self.burns_cap and \
                 (self.drag is not None or self.burn_aim is not None):
             mx, my = self.drag if self.drag is not None else self.burn_aim
             dvx, dvy = self.burn_dv(mx, my)
@@ -2661,7 +3396,7 @@ class OrbitalGame:
             if self.preview_var.get():
                 pts, outcome = predict_path(
                     self.x, self.y, self.vx + dvx, self.vy + dvy,
-                    self.specs, (self.tx, self.ty), t0=self.clock,
+                    self.specs, self.target_spec, t0=self.clock,
                     wormholes=self.wormholes, wh_cd=self.wh_cd,
                     wh_pair=self.wh_pair, barriers=self.barriers)
                 prediction = (pts, outcome)
@@ -2671,24 +3406,29 @@ class OrbitalGame:
         if prediction is not None:
             pts, outcome = prediction
             segs = self._segments(pts)
-            if segs:
-                best = max(segs, key=len)
-                color = {"dock": COLORS["ok"], "crash": COLORS["danger"],
-                         "lost": COLORS["dim"],
-                         "flying": COLORS["predict"]}[outcome]
-                self._show(self.it_predict,
-                           PTS([p for pt in best for p in pt]), fill=color)
-            else:
-                self._hide(self.it_predict)
+            color = {"dock": COLORS["ok"], "crash": COLORS["danger"],
+                     "lost": COLORS["dim"],
+                     "flying": COLORS["predict"]}[outcome]
+            for item, seg in zip(self.it_predicts, segs):
+                self._show(item, PTS([p for pt in seg for p in pt]),
+                           fill=color)
+            for item in self.it_predicts[len(segs):]:
+                self._hide(item)
         else:
-            self._hide(self.it_predict)
+            for item in self.it_predicts:
+                self._hide(item)
 
         # particles
         for slot, item in enumerate(self.it_particles):
             if slot < len(self.particles):
                 p = self.particles[slot]
                 frac = 1.0 - p["life"] / p["max"]
-                shade = PARTICLE_SHADES[p["family"]][min(3, int(frac * 4))]
+                if p["family"] == "engine":
+                    # engine exhaust wears the probe's shop color
+                    shades = self._engine_shades()
+                else:
+                    shades = PARTICLE_SHADES[p["family"]]
+                shade = shades[min(3, int(frac * 4))]
                 rad = max(0.8, p["size"] * (1.0 - frac * 0.6))
                 self._show(item, PTS([p["x"] - rad, p["y"] - rad,
                                       p["x"] + rad, p["y"] + rad]),
@@ -2743,17 +3483,22 @@ class OrbitalGame:
                              "loop": sp["path"].get("loop") is True}
             if sp.get("repel"):
                 p["repel"] = True
+            if sp.get("shape"):
+                p["shape"] = [list(q) for q in sp["shape"]]
             planets.append(p)
         return {
             "planets": planets,
-            "start": [lv["start"][0], lv["start"][1]],
-            "target": [lv["target"][0], lv["target"][1]],
+            "start": normalize_mover(lv["start"]),
+            "target": normalize_mover(lv["target"]),
             "cores": [[c[0], c[1]] for c in lv["cores"]],
+            "fuel": [[f[0], f[1]] for f in lv.get("fuel", [])],
             "wormholes": [list(w) for w in level_wormholes(lv)],
             "barriers": [[list(q) for q in poly]
                          for poly in level_barriers(lv)],
             "drag": None, "sel": None, "worm_next": None,
             "orbit_next": None, "path_next": None,
+            "orbit_mover": None, "path_mover": None,
+            "shape_poly": None,
             "custom_idx": None,
             "barrier_poly": None, "barrier_rect": None,
             "barrier_cur": None, "delbarrier_poly": None,
@@ -2761,6 +3506,17 @@ class OrbitalGame:
 
     def enter_editor(self):
         if self.mode == "editor":
+            return
+        if self.editor is None and self.level_i < len(LEVELS):
+            # belt and braces for the greyed-out button: a fresh
+            # editor on a campaign mission would have to save as a
+            # copy, so refuse it outright. (Re-entering an editor
+            # that already exists is fine - that work is already
+            # a custom in progress.)
+            self.message = ("The editor is only for your own levels - "
+                            "open My levels to build a new one or edit "
+                            "a saved one.")
+            self.sync_ui()
             return
         self.mode = "editor"
         if self.editor is None:
@@ -2787,32 +3543,9 @@ class OrbitalGame:
         # pack() appends it below the pager, where the fixed-size
         # window clips it out of sight (the "editor has no tools" bug).
         self.ed_bar.pack(fill="x", before=self.canvas)
+        if self.ed_bar2 is not None:
+            self.ed_bar2.pack(fill="x", before=self.canvas)
         self.ed_sub_row.pack(fill="x", before=self.canvas)
-        self.ed_hint.pack(fill="x", before=self.canvas)
-        self.ed_hint.config(
-            text="Drag planets to move them - wheel over a planet "
-                 "resizes it - wormholes go in pairs (A, then B). "
-                 "Orbit tool: click a planet, then its center point; "
-                 "wheel = orbit size, Shift+wheel = speed. "
-                 "Shift+click a planet (Planet tool) toggles REPEL: "
-                 "an orange dashed ring means it pushes instead of pulls. "
-                 "Path tool: click a planet, then click waypoints to "
-                 "build its route (2 points = a straight patrol line, "
-                 "more = a custom path); click the planet again to "
-                 "finish, wheel over a pathed planet = path speed. "
-                 "Shift+click a pathed planet (Path tool) toggles LOOP: "
-                 "it rides the route in a circle, back to the start, "
-                 "like an orbit, instead of ping-ponging. "
-                 "Barrier tool: drag a rectangle to make a solid wall "
-                 "(the ship crashes into it), or hold Shift and click "
-                 "to lay down polygon corners, then release Shift to "
-                 "close the shape - a barrier needs 3 corners and a "
-                 "real area, so a line makes nothing. "
-                 "Del Bar tool works the same way but cuts barrier out "
-                 "instead: drag a rectangle over part of a wall to cut "
-                 "it away, or Shift+click a shape - cutting a smaller "
-                 "shape out of the middle of a big one leaves a ring. "
-                 "Double-click a planet to rename it.")
         self.hud1.config(text="Level Editor")
         self.hud2.config(text="  Build a mission, then Playtest it or "
                               "Save level to keep it.")
@@ -2822,14 +3555,51 @@ class OrbitalGame:
         self.canvas.focus_set()
         self._fit_window()
 
+    def editor_help_dialog(self):
+        """Show the editor help in a window (from the Help button)."""
+        win = tk.Toplevel(self.root)
+        win.title("Editor help")
+        win.resizable(False, False)
+        win.configure(bg="#0b1020")
+        tk.Label(win, bg="#0b1020", fg=COLORS["text"],
+                 font=("Consolas", self.FS(11), "bold"),
+                 text="Editor help").pack(padx=14, pady=(12, 2))
+        tk.Label(win, bg="#0b1020", fg=COLORS["dim"],
+                 font=("Consolas", self.FS(10)), justify="left",
+                 wraplength=int(540 * self.S),
+                 text=EDITOR_HELP_TEXT).pack(padx=14)
+        tk.Button(win, text="Close", command=win.destroy,
+                  bg="#16213c", fg=COLORS["text"],
+                  activebackground="#22335c", relief="flat",
+                  padx=12, pady=4, takefocus=0).pack(pady=(8, 12))
+
+    def new_level_editor(self):
+        """Open a blank editor for a brand-new custom level.
+        Reached only from My levels; Save creates the level.
+        (editor_clear builds the blank level and resets the
+        fields, and enter_editor with an editor dict already set
+        just shows the editor UI instead of loading the open
+        level - so a campaign mission can never leak in.)"""
+        if self.mode == "editor":
+            return
+        self.editor_clear()
+        self.enter_editor()
+
     def exit_editor(self):
         if self.mode != "editor":
             return
         self.mode = "play"
         self.ed_bar.pack_forget()
+        if self.ed_bar2 is not None:
+            self.ed_bar2.pack_forget()
         self.ed_sub_row.pack_forget()
-        self.ed_hint.pack_forget()
         self.canvas.focus_set()
+        # Exit leaves without saving, so the in-memory edit goes
+        # away with it: without this, opening the editor on another
+        # level showed the old level's work and Save overwrote the
+        # wrong level. (Playtest returns through enter_editor, not
+        # here, so in-progress work survives a playtest.)
+        self.editor = None
         self.load_level(self.level_i)
         self._fit_window()
 
@@ -2858,12 +3628,16 @@ class OrbitalGame:
                              "speed": q["path"].get("speed", 60.0),
                              "phase": q["path"].get("phase", 0.0),
                              "loop": q["path"].get("loop") is True}
+            if "shape" in q:
+                q["shape"] = [list(pt) for pt in q["shape"]]
             planets.append(q)
         return {"name": name, "sub": sub,
-                "start": tuple(ed["start"]), "target": tuple(ed["target"]),
+                "start": _mover_out(ed["start"]),
+                "target": _mover_out(ed["target"]),
                 "par": par, "max_burns": burns,
                 "planets": planets,
                 "cores": [tuple(c) for c in ed["cores"]],
+                "fuel": [tuple(f) for f in ed["fuel"]],
                 "wormholes": [tuple(w) for w in ed["wormholes"]],
                 "barriers": [[[q[0], q[1]] for q in poly]
                              for poly in ed["barriers"]]}
@@ -2883,8 +3657,9 @@ class OrbitalGame:
             idx = len(self.all_levels()) - 1
         self.mode = "play"
         self.ed_bar.pack_forget()
+        if self.ed_bar2 is not None:
+            self.ed_bar2.pack_forget()
         self.ed_sub_row.pack_forget()
-        self.ed_hint.pack_forget()
         self.canvas.focus_set()
         self.load_level(idx)
         self._fit_window()
@@ -2909,8 +3684,9 @@ class OrbitalGame:
                          "the campaign in the pager.")
         self.mode = "play"
         self.ed_bar.pack_forget()
+        if self.ed_bar2 is not None:
+            self.ed_bar2.pack_forget()
         self.ed_sub_row.pack_forget()
-        self.ed_hint.pack_forget()
         self.canvas.focus_set()
         self.load_level(saved_idx)
         self.message = saved_msg
@@ -2979,7 +3755,7 @@ class OrbitalGame:
         index, which can only be leftovers from a session level that
         used to sit there."""
         key = str(idx)
-        for field in ("stars", "cores", "flybys", "ghost"):
+        for field in ("stars", "cores", "flybys", "ghost", "times"):
             self.save[field].pop(key, None)
 
     def _import_code(self, code_text):
@@ -3023,7 +3799,7 @@ class OrbitalGame:
         one deleted or one after it."""
         start = len(LEVELS)
         del self.save["custom"][idx - start]
-        for field in ("stars", "cores", "flybys", "ghost"):
+        for field in ("stars", "cores", "flybys", "ghost", "times"):
             shifted = {}
             for k, v in self.save[field].items():
                 ki = int(k)
@@ -3141,8 +3917,8 @@ class OrbitalGame:
         lb.config(yscrollcommand=scroll.set)
         empty = tk.Label(win, bg="#0b1020", fg=COLORS["dim"],
                          font=("Consolas", self.FS(10)),
-                         text="No saved levels yet - build one in the "
-                              "editor.")
+                         text="No saved levels yet - press New level "
+                              "below to build one.")
 
         def refresh():
             lb.delete(0, "end")
@@ -3151,8 +3927,12 @@ class OrbitalGame:
                 stars = self.save["stars"].get(str(gi), 0)
                 got = int(self.save["cores"].get(str(gi), 0))
                 total = len(lv.get("cores", []))
-                lb.insert("end",
-                          f"{lv['name']}  -  {stars}*  {got}/{total} cores")
+                line = (f"{lv['name']}  -  {stars}*  "
+                        f"{got}/{total} cores")
+                best = self.save.get("times", {}).get(str(gi))
+                if best is not None:
+                    line += f"  {float(best):.1f}s"
+                lb.insert("end", line)
             if self.save["custom"]:
                 empty.pack_forget()
             else:
@@ -3179,6 +3959,10 @@ class OrbitalGame:
             win.destroy()
             self.load_level(len(LEVELS) + i)
             self.enter_editor()
+
+        def go_new():
+            win.destroy()
+            self.new_level_editor()
 
         def go_share():
             i = selected()
@@ -3295,8 +4079,8 @@ class OrbitalGame:
         row = tk.Frame(win, bg="#0b1020")
         row.pack(pady=(6, 2))
         for text, cmd in (("Play", go_play), ("Edit", go_edit),
-                          ("Share", go_share), ("Rename", go_rename),
-                          ("Delete", go_delete)):
+                          ("New level", go_new), ("Share", go_share),
+                          ("Rename", go_rename), ("Delete", go_delete)):
             tk.Button(row, text=text, command=cmd, bg="#16213c",
                       fg=COLORS["text"], activebackground="#22335c",
                       relief="flat", padx=12, pady=4,
@@ -3315,6 +4099,101 @@ class OrbitalGame:
                   fg=COLORS["text"], activebackground="#22335c",
                   relief="flat", padx=12, pady=4,
                   takefocus=0).pack(side="left", padx=4)
+
+    def rewards_dialog(self):
+        """Orbytes shop (probe colors, 100 orbytes each) and the
+        achievements list. Orbytes come from campaign wins, 10 per
+        win, replays included."""
+        win = tk.Toplevel(self.root)
+        win.title("Rewards")
+        win.resizable(False, False)
+        win.configure(bg="#0b1020")
+        body = tk.Frame(win, bg="#0b1020")
+        body.pack(padx=14, pady=12)
+
+        def build():
+            for w in body.winfo_children():
+                w.destroy()
+            orbytes = int(self.save.get("orbytes", 0))
+            tk.Label(body, bg="#0b1020", fg=COLORS["text"],
+                     font=("Consolas", self.FS(12), "bold"),
+                     text=f"Orbytes: {orbytes}").pack(anchor="w")
+            tk.Label(body, bg="#0b1020", fg=COLORS["dim"],
+                     font=("Consolas", self.FS(10)),
+                     text="Win campaign missions to earn orbytes "
+                          f"({ORBYTES_PER_WIN} per win, replays count)."
+                     ).pack(anchor="w", pady=(0, 8))
+            tk.Label(body, bg="#0b1020", fg=COLORS["text"],
+                     font=("Consolas", self.FS(11), "bold"),
+                     text="Probe colors").pack(anchor="w")
+            status = tk.Label(body, bg="#0b1020", fg=COLORS["dim"],
+                              font=("Consolas", self.FS(10)))
+            owned = set(self.save.get("colors", []))
+            current = self.probe_color()
+            grid = tk.Frame(body, bg="#0b1020")
+            grid.pack(anchor="w", pady=(2, 4))
+            # the default gold is free and always available
+            entries = [("Gold", COLORS["probe"], True)] + \
+                [(name, hexv, name in owned)
+                 for name, hexv in PROBE_COLORS]
+
+            def buy(name, hexv, is_owned):
+                if is_owned:
+                    self.save["probe_color"] = hexv
+                    self.store_save()
+                    self._apply_probe_color()
+                    build()
+                    return
+                if int(self.save.get("orbytes", 0)) < COLOR_COST:
+                    status.config(
+                        text=f"Not enough orbytes - {name} costs "
+                             f"{COLOR_COST}. Win campaign missions.",
+                        fg=COLORS["danger"])
+                    return
+                self.save["orbytes"] = int(self.save.get("orbytes", 0)) \
+                    - COLOR_COST
+                owned = set(self.save.get("colors", []))
+                owned.add(name)
+                self.save["colors"] = sorted(owned)
+                self.save["probe_color"] = hexv
+                self.store_save()
+                self._apply_probe_color()
+                build()
+
+            for i, (name, hexv, is_owned) in enumerate(entries):
+                cell = tk.Frame(grid, bg="#0b1020")
+                cell.grid(row=i // 4, column=i % 4, padx=6, pady=4)
+                tk.Label(cell, bg=hexv, width=4, height=2,
+                         relief="flat").pack()
+                if is_owned:
+                    label = "Selected" if hexv == current else "Select"
+                else:
+                    label = f"Buy · {COLOR_COST}"
+                tk.Button(cell, text=f"{name}\n{label}",
+                          command=lambda n=name, h=hexv, o=is_owned:
+                          buy(n, h, o),
+                          bg="#16213c", fg=COLORS["text"],
+                          activebackground="#22335c", relief="flat",
+                          padx=6, pady=2, takefocus=0).pack(pady=(2, 0))
+            status.pack(anchor="w")
+            tk.Label(body, bg="#0b1020", fg=COLORS["text"],
+                     font=("Consolas", self.FS(11), "bold"),
+                     text="Achievements").pack(anchor="w", pady=(8, 0))
+            unlocked = self.save.get("achievements", {})
+            for key, title, desc in ACHIEVEMENTS:
+                mark = "★" if key in unlocked else "☆"
+                col = COLORS["station"] if key in unlocked \
+                    else COLORS["dim"]
+                tk.Label(body, bg="#0b1020", fg=col,
+                         font=("Consolas", self.FS(10)),
+                         text=f"{mark} {title} - {desc}"
+                         ).pack(anchor="w")
+
+        build()
+        tk.Button(win, text="Close", command=win.destroy, bg="#16213c",
+                  fg=COLORS["text"], activebackground="#22335c",
+                  relief="flat", padx=12, pady=4,
+                  takefocus=0).pack(pady=(0, 12))
 
     def clear_ghost(self):
         """Remove the saved best-run ghost line for the open level.
@@ -3356,12 +4235,29 @@ class OrbitalGame:
         self.sync_ui()
 
     def editor_clear(self):
+        keep_idx = self.editor.get("custom_idx") \
+            if self.editor and self.mode == "editor" else None
         self.editor = self._fresh_editor({
             "start": (80, 300), "target": (880, 300),
             "planets": [{"x": 480, "y": 300, "r": 30,
                          "color": PLANET_COLORS[0], "label": "P1"}],
             "cores": [], "wormholes": [], "barriers": []})
-        self._playtest_pos = None
+        # The playtest slot is NOT reset here: clearing only wipes
+        # the canvas, so a playtest from before the Clear still
+        # belongs to this edit - the next playtest reuses its slot
+        # and Save deletes it. Resetting it orphaned the temp level
+        # in the pager after Clear + Save.
+        if keep_idx is not None:
+            # clearing while editing a saved custom wipes the canvas,
+            # not the level itself: its slot, name, par and burns
+            # stay, so Save updates it in place instead of appending
+            # a copy. (A brand-new level has no slot - it still gets
+            # blank fields below. The mode check is what tells the
+            # two apart: the Clear button only exists in the editor,
+            # while New level reaches here from play mode.)
+            self.editor["custom_idx"] = keep_idx
+            self.ed_dirty = True
+            return
         # a blank level gets blank fields: leaving the old level's
         # name / par / burns in place made Clear save under the
         # old level's identity
@@ -3462,14 +4358,33 @@ class OrbitalGame:
         elif tool == "start":
             if not point_in_barriers(gx, gy, ed["barriers"]) \
                     and not _ed_on_planet(ed, gx, gy):
-                ed["start"] = [round(gx), round(gy)]
+                # placing the pad fresh clears any motion it had
+                ed["start"] = {"x": round(gx), "y": round(gy)}
         elif tool == "target":
             if not point_in_barriers(gx, gy, ed["barriers"]) \
                     and not _ed_on_planet(ed, gx, gy):
-                ed["target"] = [round(gx), round(gy)]
+                ed["target"] = {"x": round(gx), "y": round(gy)}
         elif tool == "core":
             if len(ed["cores"]) < 24:
                 ed["cores"].append([round(gx), round(gy)])
+        elif tool == "fuel":
+            for i, (fx, fy) in enumerate(ed["fuel"]):
+                if math.hypot(gx - fx, gy - fy) <= 14:
+                    del ed["fuel"][i]
+                    self.ed_dirty = True
+                    return
+            if len(ed["fuel"]) < FUEL_MAX:
+                ed["fuel"].append([round(gx), round(gy)])
+        elif tool == "shape":
+            if ed["shape_poly"] is None:
+                ed["shape_poly"] = []
+            poly = ed["shape_poly"]
+            if len(poly) >= 3 and math.hypot(
+                    gx - poly[0][0], gy - poly[0][1]) <= 12:
+                # clicked the first corner again: close the shape
+                self._ed_finish_shape()
+                return
+            poly.append([round(gx), round(gy)])
         elif tool == "wormhole":
             if ed["worm_next"] is None:
                 ed["worm_next"] = [round(gx), round(gy)]
@@ -3504,6 +4419,26 @@ class OrbitalGame:
                     p.pop("path", None)   # one motion type per planet
                     ed["orbit_next"] = None
                     ed["sel"] = i
+            elif ed["orbit_mover"] is not None:
+                # a pad/dock is armed: click its center point, or
+                # click it again to cancel
+                mv = ed["start"] if ed["orbit_mover"] == "start" \
+                    else ed["target"]
+                mx, my = mover_xy(mv)
+                rad = 16 if ed["orbit_mover"] == "start" \
+                    else DOCK_RADIUS + 4
+                if math.hypot(gx - mx, gy - my) <= rad:
+                    ed["orbit_mover"] = None      # clicked it: cancel
+                else:
+                    radius = max(30.0, min(380.0, math.hypot(gx - mx,
+                                                             gy - my)))
+                    mv["orbit"] = {
+                        "cx": round(gx), "cy": round(gy),
+                        "radius": round(radius, 1),
+                        "speed": 0.25,
+                        "phase": round(math.atan2(my - gy, mx - gx), 4)}
+                    mv.pop("path", None)   # one motion type each
+                    ed["orbit_mover"] = None
             else:
                 for i, p in enumerate(ed["planets"]):
                     if math.hypot(gx - p["x"], gy - p["y"]) <= p["r"] + 4:
@@ -3513,6 +4448,17 @@ class OrbitalGame:
                         else:
                             ed["orbit_next"] = i
                         break
+                else:
+                    # no planet: the pad and the dock can orbit too
+                    for key, rad in (("start", 16),
+                                     ("target", DOCK_RADIUS + 4)):
+                        mx, my = mover_xy(ed[key])
+                        if math.hypot(gx - mx, gy - my) <= rad:
+                            if "orbit" in ed[key]:
+                                del ed[key]["orbit"]   # stop it
+                            else:
+                                ed["orbit_mover"] = key
+                            break
         elif tool == "path":
             hit = None
             for i, p in enumerate(ed["planets"]):
@@ -3548,6 +4494,32 @@ class OrbitalGame:
                 if "path" in p and len(p["path"]["pts"]) < 2:
                     del p["path"]
                 ed["path_next"] = None
+            elif ed["path_mover"] is not None:
+                # a pad/dock is armed for a path: waypoints, or click
+                # it again to finish
+                mv = ed["start"] if ed["path_mover"] == "start" \
+                    else ed["target"]
+                mx, my = mover_xy(mv)
+                rad = 16 if ed["path_mover"] == "start" \
+                    else DOCK_RADIUS + 4
+                if math.hypot(gx - mx, gy - my) <= rad:
+                    if "path" in mv and len(mv["path"]["pts"]) < 2:
+                        del mv["path"]
+                    ed["path_mover"] = None
+                    self.ed_dirty = True
+                    return
+                if hit is None:
+                    if "path" not in mv:
+                        mv["path"] = {"pts": [[round(mx), round(my)]],
+                                      "speed": 60.0, "phase": 0.0}
+                        mv.pop("orbit", None)
+                    if len(mv["path"]["pts"]) < 20:
+                        mv["path"]["pts"].append([round(gx), round(gy)])
+                    self.ed_dirty = True
+                    return
+                # clicked a planet: finish the mover, then treat it
+                # as a fresh click on the new planet below
+                ed["path_mover"] = None
             if hit is not None:
                 p = ed["planets"][hit]
                 ed["sel"] = hit
@@ -3565,6 +4537,22 @@ class OrbitalGame:
                     ed["path_next"] = hit
                 self.ed_dirty = True
                 return
+            # no planet: arm the pad or the dock for a path
+            for key, rad in (("start", 16), ("target", DOCK_RADIUS + 4)):
+                mx, my = mover_xy(ed[key])
+                if math.hypot(gx - mx, gy - my) <= rad:
+                    mv = ed[key]
+                    if shift and "path" in mv:
+                        if mv["path"].get("loop"):
+                            del mv["path"]["loop"]
+                        else:
+                            mv["path"]["loop"] = True
+                    elif "path" in mv:
+                        del mv["path"]   # click a pathed mover: stop it
+                    else:
+                        ed["path_mover"] = key
+                    self.ed_dirty = True
+                    return
         elif tool == "barrier":
             if shift:
                 # Shift+click lays down polygon corners, one per
@@ -3614,6 +4602,11 @@ class OrbitalGame:
                     del ed["cores"][i]
                     self.ed_dirty = True
                     return
+            for i, (fx, fy) in enumerate(ed["fuel"]):
+                if math.hypot(gx - fx, gy - fy) <= 14:
+                    del ed["fuel"][i]
+                    self.ed_dirty = True
+                    return
             for i, w in enumerate(ed["wormholes"]):
                 if math.hypot(gx - w[0], gy - w[1]) <= 20 or \
                         math.hypot(gx - w[2], gy - w[3]) <= 20:
@@ -3621,6 +4614,37 @@ class OrbitalGame:
                     self.ed_dirty = True
                     return
             ed["worm_next"] = None
+        self.ed_dirty = True
+
+    def _ed_finish_shape(self):
+        """Close a pending Shape-tool polygon into a custom-shaped
+        planet, centered on the polygon's centroid. Kept only if it
+        is a real 2D shape."""
+        ed = self.editor
+        if ed is None:
+            return
+        pts = ed["shape_poly"]
+        ed["shape_poly"] = None
+        if pts is None:
+            return
+        pts = clean_poly(pts)
+        if len(pts) < 3 or abs(polygon_area(pts)) < SHAPE_MIN_AREA:
+            return   # two points is a line, and a line is no planet
+        if not polygon_is_simple(pts):
+            return   # a bowtie is not a real shape
+        cx = sum(q[0] for q in pts) / len(pts)
+        cy = sum(q[1] for q in pts) / len(pts)
+        offsets = [[round(q[0] - cx, 1), round(q[1] - cy, 1)]
+                   for q in pts]
+        r = max(math.hypot(dx, dy) for dx, dy in offsets)
+        if r < 12:
+            return   # too small to fly around
+        n = len(ed["planets"])
+        ed["planets"].append(
+            {"x": round(cx), "y": round(cy), "r": round(min(r, 70.0)),
+             "color": PLANET_COLORS[n % len(PLANET_COLORS)],
+             "label": f"S{n + 1}", "shape": offsets})
+        ed["sel"] = n
         self.ed_dirty = True
 
     def _ed_finish_barrier_poly(self, erase):
@@ -3645,8 +4669,10 @@ class OrbitalGame:
         else:
             if len(ed["barriers"]) >= BARRIER_MAX:
                 return
-            if point_in_polygon(ed["start"][0], ed["start"][1], pts) or \
-                    point_in_polygon(ed["target"][0], ed["target"][1], pts):
+            sx, sy = mover_xy(ed["start"])
+            tx, ty = mover_xy(ed["target"])
+            if point_in_polygon(sx, sy, pts) or \
+                    point_in_polygon(tx, ty, pts):
                 return   # a barrier on the pad or dock breaks the level
             ed["barriers"].append(pts)
         self.ed_dirty = True
@@ -3678,16 +4704,18 @@ class OrbitalGame:
             if len(ed["barriers"]) >= BARRIER_MAX:
                 return
             pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
-            if point_in_polygon(ed["start"][0], ed["start"][1], pts) or \
-                    point_in_polygon(ed["target"][0], ed["target"][1], pts):
+            sx, sy = mover_xy(ed["start"])
+            tx, ty = mover_xy(ed["target"])
+            if point_in_polygon(sx, sy, pts) or \
+                    point_in_polygon(tx, ty, pts):
                 return   # a barrier on the pad or dock breaks the level
             ed["barriers"].append(pts)
         self.ed_dirty = True
 
     def _on_shift_release(self, _event):
-        """Releasing Shift finishes a pending barrier polygon: the
-        shape is closed by joining the last point back to the
-        first."""
+        """Releasing Shift finishes a pending barrier polygon - or a
+        pending custom-shape polygon: the shape is closed by joining
+        the last point back to the first."""
         if self.mode != "editor" or self.editor is None:
             return
         w = self.root.focus_get()
@@ -3698,11 +4726,13 @@ class OrbitalGame:
             self._ed_finish_barrier_poly(erase=False)
         elif tool == "delbarrier" and self.editor["delbarrier_poly"]:
             self._ed_finish_barrier_poly(erase=True)
+        elif tool == "shape" and self.editor["shape_poly"]:
+            self._ed_finish_shape()
 
     def _ed_tool_changed(self, *_args):
         """Switching tools drops any half-drawn barrier (a rectangle
         drag or a polygon in progress) - it belongs to the old tool -
-        and any half-placed wormhole mouth."""
+        and any half-placed wormhole mouth or custom shape."""
         ed = self.editor
         if ed is None:
             return
@@ -3713,6 +4743,9 @@ class OrbitalGame:
         ed["delbarrier_poly"] = None
         ed["delbarrier_rect"] = None
         ed["delbarrier_cur"] = None
+        ed["shape_poly"] = None
+        ed["orbit_mover"] = None
+        ed["path_mover"] = None
         self.ed_dirty = True
 
     def ed_drag(self, gx, gy):
@@ -3779,6 +4812,36 @@ class OrbitalGame:
                 and ed["sel"] < len(ed["planets"]):
             target = ed["planets"][ed["sel"]]
         if target is None:
+            # no planet under the wheel: the pad and the dock take
+            # the wheel for their own orbit/path
+            tool = self.ed_tool.get()
+            for key, rad in (("start", 16), ("target", DOCK_RADIUS + 4)):
+                mx, my = mover_xy(ed[key])
+                if math.hypot(gx - mx, gy - my) <= rad:
+                    mv = ed[key]
+                    if tool == "path" and "path" in mv:
+                        pth = mv["path"]
+                        pth["speed"] = round(max(5.0, min(300.0,
+                                                           pth["speed"]
+                                                           + direction * 5)),
+                                             1)
+                        self.ed_dirty = True
+                        return
+                    if tool == "orbit" and "orbit" in mv:
+                        orb = mv["orbit"]
+                        if shift:
+                            speed = orb["speed"] + direction * 0.05
+                            speed = max(-1.5, min(1.5, speed))
+                            if abs(speed) < 0.025:
+                                speed = 0.05 if direction > 0 else -0.05
+                            orb["speed"] = round(speed, 2)
+                        else:
+                            orb["radius"] = round(max(30.0, min(380.0,
+                                                                 orb["radius"]
+                                                                 + direction
+                                                                 * 5)), 1)
+                        self.ed_dirty = True
+                        return
             return
         if self.ed_tool.get() == "path" and "path" in target:
             pth = target["path"]
@@ -3800,6 +4863,18 @@ class OrbitalGame:
                                                      orb["radius"]
                                                      + direction * 5)), 1)
                 self._ed_sync_orbit_pos(target)
+            self.ed_dirty = True
+            return
+        if target.get("shape"):
+            # the wheel scales a custom shape about its center
+            factor = 1.1 if direction > 0 else 1.0 / 1.1
+            scaled = [[dx * factor, dy * factor]
+                      for (dx, dy) in target["shape"]]
+            r = max(math.hypot(dx, dy) for dx, dy in scaled)
+            if 12.0 <= r <= 70.0:
+                target["shape"] = [[round(dx, 1), round(dy, 1)]
+                                   for (dx, dy) in scaled]
+                target["r"] = round(r)
             self.ed_dirty = True
             return
         target["r"] = max(12, min(70, target["r"] + direction * 2))
@@ -3853,6 +4928,47 @@ class OrbitalGame:
             wx, wy = ed["worm_next"]
             c.create_oval(X(wx - 20), X(wy - 20), X(wx + 20), X(wy + 20),
                           outline=COLORS["danger"], width=2)
+        # in-progress custom shape (green, dashed)
+        poly = ed["shape_poly"]
+        if poly:
+            if len(poly) >= 2:
+                c.create_line(*[X(v) for q in poly for v in q],
+                              fill="#4ade80", width=2, dash=(4, 3))
+            for (qx, qy) in poly:
+                c.create_oval(X(qx - 3), X(qy - 3), X(qx + 3),
+                              X(qy + 3), outline="#4ade80", width=1)
+        # the pad and the dock move too: draw their orbit circles and
+        # patrol routes, and ring the armed one
+        for key, rad in (("start", 16), ("target", DOCK_RADIUS)):
+            mv = ed[key]
+            mx, my = mover_xy(mv)
+            if mv.get("orbit"):
+                orb = mv["orbit"]
+                c.create_oval(X(orb["cx"] - orb["radius"]),
+                              X(orb["cy"] - orb["radius"]),
+                              X(orb["cx"] + orb["radius"]),
+                              X(orb["cy"] + orb["radius"]),
+                              outline=COLORS["dim"], width=1, dash=(4, 4))
+                c.create_oval(X(orb["cx"] - 3), X(orb["cy"] - 3),
+                              X(orb["cx"] + 3), X(orb["cy"] + 3),
+                              outline=COLORS["dim"], width=1)
+                c.create_line(X(orb["cx"]), X(orb["cy"]), X(mx), X(my),
+                              fill=COLORS["dim"], dash=(2, 3))
+            if mv.get("path"):
+                pts = mv["path"]["pts"]
+                if len(pts) >= 2:
+                    route = pts + [pts[0]] if mv["path"].get("loop") \
+                        else pts
+                    c.create_line(*[X(v) for q in route for v in q],
+                                  fill=COLORS["dim"], width=1, dash=(4, 4))
+                for (qx, qy) in pts:
+                    c.create_oval(X(qx - 3), X(qy - 3), X(qx + 3),
+                                  X(qy + 3), outline=COLORS["dim"], width=1)
+            if ed.get("orbit_mover") == key or ed.get("path_mover") == key:
+                c.create_oval(X(mx - rad - 10), X(my - rad - 10),
+                              X(mx + rad + 10), X(my + rad + 10),
+                              outline=COLORS["danger"], width=2,
+                              dash=(3, 3))
         for i, p in enumerate(ed["planets"]):
             orb = p.get("orbit")
             if orb:
@@ -3893,15 +5009,29 @@ class OrbitalGame:
                 c.create_oval(X(p["x"] - r - 6), X(p["y"] - r - 6),
                               X(p["x"] + r + 6), X(p["y"] + r + 6),
                               outline=COLORS["probe"], width=1, dash=(3, 3))
-            c.create_oval(X(p["x"] - r), X(p["y"] - r), X(p["x"] + r),
-                          X(p["y"] + r), fill=p["color"],
-                          outline="#ffd9a8" if p.get("repel") else "#cdd8ff",
-                          width=1)
-            if p.get("repel"):
-                c.create_oval(X(p["x"] - r * 1.7), X(p["y"] - r * 1.7),
-                              X(p["x"] + r * 1.7), X(p["y"] + r * 1.7),
-                              outline="#ff9a3c", width=2, dash=(4, 3))
+            if p.get("shape"):
+                pts = shape_abs_points(p["x"], p["y"], p["shape"])
+                c.create_polygon(*[X(v) for q in pts for v in q],
+                                 fill=p["color"],
+                                 outline="#ffd9a8" if p.get("repel")
+                                 else "#cdd8ff", width=1)
+                if p.get("repel"):
+                    well_pts = _scaled_poly(pts, p["x"], p["y"], 1.7)
+                    c.create_polygon(*[X(v) for q in well_pts for v in q],
+                                     outline="#ff9a3c", width=2, dash=(4, 3),
+                                     fill="")
+            else:
+                c.create_oval(X(p["x"] - r), X(p["y"] - r), X(p["x"] + r),
+                              X(p["y"] + r), fill=p["color"],
+                              outline="#ffd9a8" if p.get("repel") else "#cdd8ff",
+                              width=1)
+                if p.get("repel"):
+                    c.create_oval(X(p["x"] - r * 1.7), X(p["y"] - r * 1.7),
+                                  X(p["x"] + r * 1.7), X(p["y"] + r * 1.7),
+                                  outline="#ff9a3c", width=2, dash=(4, 3))
             label = f'{p["label"]} r{r}'
+            if p.get("shape"):
+                label += " - SHAPE"
             if p.get("repel"):
                 label += " - REPEL"
             if p.get("path"):
@@ -3915,8 +5045,8 @@ class OrbitalGame:
             c.create_text(X(p["x"]), X(p["y"] + r + 14),
                           text=label, fill=COLORS["dim"],
                           font=("Consolas", self.FS(9)))
-        sx, sy = ed["start"]
-        tx, ty = ed["target"]
+        sx, sy = mover_xy(ed["start"])
+        tx, ty = mover_xy(ed["target"])
         c.create_oval(X(sx - 12), X(sy - 12), X(sx + 12), X(sy + 12),
                       outline=COLORS["dim"], width=2)
         c.create_text(X(sx), X(sy + 24), text="PAD", fill=COLORS["dim"],
@@ -3932,6 +5062,11 @@ class OrbitalGame:
             c.create_polygon(X(cx), X(cy - 8), X(cx + 6), X(cy), X(cx),
                              X(cy + 8), X(cx - 6), X(cy),
                              fill=COLORS["core"], outline="")
+        for (fx, fy) in ed["fuel"]:
+            c.create_rectangle(X(fx - 8), X(fy - 8), X(fx + 8), X(fy + 8),
+                               outline="#ff9a3c", width=2)
+            c.create_rectangle(X(fx - 3), X(fy - 3), X(fx + 3), X(fy + 3),
+                               fill="#ff9a3c", outline="")
 
 
 # ----------------------------------------------------------------------
@@ -3982,7 +5117,17 @@ def _dense_flight(specs, start, vx, vy, target, cores=(), seconds=14.0,
     return "timeout", pts, got
 
 
-def _cores_on_detour(pts_b, planets, start, station, pts_a, fracs):
+def _near_wormhole(x, y, wormholes, dist=40.0):
+    """True when (x, y) sits within dist of any wormhole mouth: the
+    warp (17 px) would swallow the ship before it could reach a
+    core (19 px) placed there."""
+    return any(math.hypot(x - mx, y - my) < dist
+               for (ax, ay, bx, by) in wormholes
+               for (mx, my) in ((ax, ay), (bx, by)))
+
+
+def _cores_on_detour(pts_b, planets, start, station, pts_a, fracs,
+                     wormholes=()):
     """Place the cores on a second flight path (line B) that also
     docks but arcs differently from the design line A: the cores sit
     on B's route, off A's, so the obvious line leaves them behind and
@@ -3990,7 +5135,9 @@ def _cores_on_detour(pts_b, planets, start, station, pts_a, fracs):
     breaks a fairness rule (inside a planet's crash zone, on the
     start or station, on the straight start->station axis, back on
     line A's route, nearly in a line themselves, or outside the
-    field where nobody could see them)."""
+    field where nobody could see them). A core also may not sit on a
+    wormhole mouth: the warp (17 px) would swallow the ship before
+    it could reach the core (19 px), so cores stay 40 px clear."""
     cores = []
     total = len(pts_b)
     for frac in fracs:
@@ -4007,6 +5154,8 @@ def _cores_on_detour(pts_b, planets, start, station, pts_a, fracs):
         if math.hypot(x - start[0], y - start[1]) < 60:
             return None
         if math.hypot(x - station[0], y - station[1]) < 46:
+            return None
+        if _near_wormhole(x, y, wormholes):
             return None
         if abs((x - start[0]) * ay - (y - start[1]) * ax) / alen < 30:
             return None
@@ -4217,7 +5366,8 @@ def generate_random_level():
                     fset = [min(max(fr + shift, 0.08), 0.92)
                             for fr in fracs]
                     placed = _cores_on_detour(pts_b, planets, start,
-                                              station, pts, fset)
+                                              station, pts, fset,
+                                              wormholes=wormholes)
                     if placed is not None:
                         break
                 if placed is None:
@@ -4239,6 +5389,8 @@ def generate_random_level():
                 cx, cy = pts[int(si * frac)]
                 if not (34 <= cx <= WIDTH - 34
                         and 34 <= cy <= HEIGHT - 34):
+                    in_bounds = False
+                if _near_wormhole(cx, cy, wormholes):
                     in_bounds = False
                 cores.append((round(cx), round(cy)))
             if not in_bounds:
